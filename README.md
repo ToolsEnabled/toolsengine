@@ -857,7 +857,7 @@ lifecycle and browser tests; upstream tools never become public automatically.
 
 `browser.resize` sets the selected tab viewport, using integer CSS pixels: width 320–3840 and height 240–2160. For a narrow layout, use `{"width":390,"height":844}`; then inspect a fresh snapshot or screenshot. It preserves the page and other tabs. The selected tab in an explicitly attached browser is affected too. This is responsive viewport sizing, not phone, touch, user-agent or operating-system window emulation. No new browser connection, profile, arbitrary script, or credential access is added.
 
-## Changes in 0.1.4
+## Changes in 0.1.4 (2026-10-13)
 
 A patch release of 0.1.3, from the defects a new user found installing it
 from the release page. The server and its tools are unchanged.
@@ -866,10 +866,10 @@ from the release page. The server and its tools are unchanged.
   registry yet and shows the route that works: `npm install -g` of the
   `toolsenabled-toolsengine-VERSION.tgz` file from the release, after
   checking it against its `.sha256` file.
-- The README checks an archive before extracting it: `sha256sum -c
-  --ignore-missing SHA256SUMS` on Linux (without `--ignore-missing` the
-  check also reports the Windows archive, which the file lists, and exits
-  1), `certutil -hashfile` on Windows.
+- The install steps check the archive against `SHA256SUMS` before
+  extracting it: `sha256sum -c --ignore-missing SHA256SUMS` on Linux
+  (without `--ignore-missing` the check also reports the Windows archive,
+  which the file lists, and exits 1), `certutil -hashfile` on Windows.
 - `SECURITY.md`, the security policy with its safe harbor, is a file of the
   package (22 files now) and sits at the top of each release archive beside
   LICENSE and NOTICE; INSTALL.txt lists it. The README names the security
