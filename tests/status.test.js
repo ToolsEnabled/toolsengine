@@ -106,7 +106,7 @@ test('system.status returns the capability metadata without starting a browser',
   const result = await engine.call('system.status', {});
   assert.equal(result.isError, undefined);
   const status = JSON.parse(result.content[0].text);
-  assert.equal(status.version, '0.1.5');
+  assert.equal(status.version, '0.1.6');
   assert.deepEqual({
     browserEnabled: status.browserEnabled,
     browserMode: status.browserMode,
@@ -132,8 +132,8 @@ test('system.status returns the capability metadata without starting a browser',
   });
 });
 
-test('package, shrinkwrap, runtime status and CLI report release 0.1.5', async t => {
-  const expected = '0.1.5';
+test('package, shrinkwrap, runtime status and CLI report release 0.1.6', async t => {
+  const expected = '0.1.6';
   const packageJson = JSON.parse(await fs.readFile(new URL('../package.json', import.meta.url)));
   const shrinkwrap = JSON.parse(await fs.readFile(new URL('../npm-shrinkwrap.json', import.meta.url)));
   assert.equal(packageJson.version, expected);

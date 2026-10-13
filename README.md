@@ -1,7 +1,7 @@
 # ToolsEngine portable MCP
 
 A separate local MCP server for browser automation, workspace files and public
-web reading on Windows and Linux. Version 0.1.5 is a patch release of 0.1.4
+web reading on Windows and Linux. Version 0.1.6 is a patch release of 0.1.5
 (0.1.3 was the first public release); what changed in each is listed at the end. It offers 27 core tools; attached-browser modes offer 26.
 An explicit Windows desktop option adds four tools for existing signed-in apps.
 
@@ -97,7 +97,7 @@ npm install -g ./toolsenabled-toolsengine-VERSION.tgz
 toolsengine --version
 ```
 
-`toolsengine --version` prints `ToolsEngine 0.1.5`. Start the server with an
+`toolsengine --version` prints `ToolsEngine 0.1.6`. Start the server with an
 existing absolute folder as the workspace and the installed browser by name:
 
 ```
@@ -904,6 +904,49 @@ lifecycle and browser tests; upstream tools never become public automatically.
 ## Responsive layout checks (new in 0.1.3)
 
 `browser.resize` sets the selected tab viewport, using integer CSS pixels: width 320–3840 and height 240–2160. For a narrow layout, use `{"width":390,"height":844}`; then inspect a fresh snapshot or screenshot. It preserves the page and other tabs. The selected tab in an explicitly attached browser is affected too. This is responsive viewport sizing, not phone, touch, user-agent or operating-system window emulation. No new browser connection, profile, arbitrary script, or credential access is added.
+
+## Changes in 0.1.6 (2026-10-13)
+
+A patch release of 0.1.5, from a code review of 0.1.5. The server offers the
+same 27 tools.
+
+- A browser call that had already clicked, typed or navigated was reported
+  as an error ("Saved artifact size or number limit reached; nothing was
+  saved." or "Another artifact writer is active ...") when the page-snapshot
+  file written after it could not be saved. The page had changed, and the
+  error invited the assistant to repeat the action: to place an order or
+  send a message twice. Now the call's result stands, and it says that the
+  action was carried out and only its snapshot file was not saved.
+- Automatic page snapshots are no longer kept forever. Before, the 256-file
+  limit filled after about 256 browser calls in a workspace that is kept,
+  and from then on every browser call failed that way, `install.mjs check`
+  included. Now the newest 64 (within 16 MiB) are kept and older ones are
+  deleted, when a new one is written and when the server starts, so a
+  workspace that 0.1.5 filled keeps only its newest 64 after the first
+  start. Files saved under a name given to a tool, screenshots, PDFs, logs,
+  downloads and files you put there are never deleted.
+- A write waits up to 2 seconds for another ToolsEngine on the same
+  workspace that holds the output lock, instead of being refused at once.
+- `workspace.search` no longer fails as a whole when a file or folder in
+  the tree has a name that Linux allows and Windows does not (a colon, as
+  in `server-2026-10-13T10:00:00.log`, a trailing dot or space, a device
+  name such as `aux.c`). It passes them by and counts them as
+  `nonPortableNames`.
+- Case-insensitive `workspace.search` reports the column in the line as
+  written on lines that contain letters whose lower case is longer, such
+  as the Turkish "İ".
+- `web.extract` finds the end of a script or a style on pages that contain
+  "İ": script source no longer comes out as text there, and the text after
+  a style is no longer lost.
+- `install.mjs uninstall` no longer stops with "ReferenceError: unexpected
+  is not defined" after removing the files when a leftover folder cannot
+  be read. It names the folder as unreadable and goes on to name the
+  workspace and the commands that remove the client registrations.
+- `workspace.write_file` writes names of up to 255 bytes (its temporary file
+  has a short name of its own now; before, names of about 214 to 255 bytes
+  failed), and a longer name is refused with "... has a name that is longer
+  than this file system allows" instead of the system's `ENAMETOOLONG`
+  error with the workspace's full path. `workspace.read_file` says the same.
 
 ## Changes in 0.1.5 (2026-10-13)
 
