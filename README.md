@@ -83,9 +83,13 @@ package is a file in each release on
 `toolsenabled-toolsengine-VERSION.tgz`, with its SHA-256 sum in
 `toolsenabled-toolsengine-VERSION.tgz.sha256`. For a machine that already
 has Node.js and npm, install it from that file. This route fetches the
-dependency versions pinned in the package's `npm-shrinkwrap.json` from the
-npm registry and downloads no browser; it does not run the installer, so
-the client is connected with its own command, as shown below.
+program's dependencies from the npm registry and downloads no browser. npm
+takes the four dependencies that `package.json` names at their exact
+versions and resolves the packages they depend on itself, so some of those
+can be newer than the versions this release was tested with, which are
+listed in `npm-shrinkwrap.json`; the release archives carry exactly the
+tested versions. This route does not run the installer, so the client is
+connected with its own command, as shown below.
 
 ```sh
 sha256sum -c toolsenabled-toolsengine-VERSION.tgz.sha256
@@ -866,6 +870,11 @@ from the release page. The server and its tools are unchanged.
   registry yet and shows the route that works: `npm install -g` of the
   `toolsenabled-toolsengine-VERSION.tgz` file from the release, after
   checking it against its `.sha256` file.
+- The README no longer says that this route installs the dependency
+  versions listed in the package's `npm-shrinkwrap.json`: `npm install -g`
+  of the 0.1.4 file with npm 10.9.3 on 2026-10-13 took 92 of the 97
+  packages at those versions and 5 at newer ones. The release archives
+  carry exactly the tested versions.
 - The install steps check the archive against `SHA256SUMS` before
   extracting it: `sha256sum -c --ignore-missing SHA256SUMS` on Linux
   (without `--ignore-missing` the check also reports the Windows archive,
