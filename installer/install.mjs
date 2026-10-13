@@ -109,6 +109,11 @@ export function parseArgs(argv) {
   };
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
+    // An install is always of this installer's own version. The option is
+    // refused on the install command whether or not a value follows it: it
+    // used to be accepted and ignored, and later a bare "--version" was
+    // answered with "needs a value" instead of this explanation.
+    if (arg === '--version' && options.command === 'install') throw new Stop('--version is for register, check, list and uninstall. An install is always this installer\'s version.');
     if (values[arg]) {
       if (args[i + 1] === undefined || args[i + 1].startsWith('--')) throw new Stop(`${arg} needs a value.`);
       // An empty value would quietly become the current folder further on.
@@ -132,9 +137,6 @@ export function parseArgs(argv) {
   if (options.replace && options.command === 'install' && !options.register.length) throw new Stop('--replace only has a meaning together with --register.');
   if (options.command === 'register' && !options.register.length && !options.help) throw new Stop('Name the client to connect: node install.mjs register claude, codex or all.');
   if (options.version !== null && !/^[0-9A-Za-z][0-9A-Za-z.+-]{0,63}$/.test(options.version)) throw new Stop('--version is not a version number.');
-  // An install is always of this installer's own version; the option used to
-  // be accepted here and then ignored.
-  if (options.command === 'install' && options.version !== null) throw new Stop('--version is for register, check, list and uninstall. An install is always this installer\'s version.');
   for (const key of ['workspace', 'installRoot', 'home']) if (options[key] !== null) options[key] = path.resolve(options[key]);
   return options;
 }

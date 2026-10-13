@@ -241,6 +241,7 @@ function installText(target, release) {
     '  app/                      ToolsEngine and the packages it needs (app/README.md is the manual)',
     '  release.json              every file with its size and SHA-256',
     '  LICENSE, NOTICE           ToolsEngine licence (MIT) and notices',
+    '  SECURITY.md               how to report a security problem, and the safe harbor',
     '  THIRD-PARTY-NOTICES.txt   the bundled packages and their licence texts',
     '',
   ];
@@ -260,7 +261,7 @@ export function validateTestLog(file, packageFolder) {
 
 export function testedTree(packageFolder) {
   const result = {};
-  for (const name of ['bin','src','native','docs','tests','tools','installer','node_modules','package.json','npm-shrinkwrap.json','README.md','LICENSE','NOTICE']) {
+  for (const name of ['bin','src','native','docs','tests','tools','installer','node_modules','package.json','npm-shrinkwrap.json','README.md','LICENSE','NOTICE','SECURITY.md']) {
     const full = path.join(packageFolder, name);
     if (!fs.existsSync(full)) continue;
     const scan = (file, relative) => {
@@ -369,10 +370,10 @@ async function build() {
   const notices = renderNotices(rows, { version: pkg.version });
   fs.writeFileSync(path.join(common, 'THIRD-PARTY-NOTICES.txt'), notices.text);
 
-  // 5. Installer and the package's own licence files at the top.
+  // 5. Installer and the package's own licence and security-policy files at the top.
   fs.copyFileSync(path.join(PORTABLE, 'installer', 'install.mjs'), path.join(common, 'install.mjs'));
   assertPackedBytes(path.join(common, 'install.mjs'), 'installer/install.mjs', snapshot);
-  for (const name of ['LICENSE', 'NOTICE']) fs.copyFileSync(path.join(app, name), path.join(common, name));
+  for (const name of ['LICENSE', 'NOTICE', 'SECURITY.md']) fs.copyFileSync(path.join(app, name), path.join(common, name));
 
   const catalogue = readJson(path.join(app, 'docs', 'tool-catalogue.json'));
   const desktopCatalogue = readJson(path.join(app, 'docs', 'desktop-catalogue.json'));

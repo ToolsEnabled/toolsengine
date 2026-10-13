@@ -1,15 +1,16 @@
 # ToolsEngine portable MCP
 
 A separate local MCP server for browser automation, workspace files and public
-web reading on Windows and Linux. Version 0.1.3 is the first public release;
-what changed during its release candidates is listed at the end. It offers 27 core tools; attached-browser modes offer 26.
+web reading on Windows and Linux. Version 0.1.4 is a patch release of 0.1.3,
+the first public release; what changed in each is listed at the end. It offers 27 core tools; attached-browser modes offer 26.
 An explicit Windows desktop option adds four tools for existing signed-in apps.
 
 ## Install
 
 ToolsEngine comes as one archive per system. Everything it needs to run is
 inside the archive, so installing downloads nothing and works without a
-network connection. The same program is also published on npm; that route
+network connection. The same program is also packaged for npm; that package
+is a file on the releases page, not on the npm registry yet, and its route
 is described under "From npm" below.
 
 | System | Archive |
@@ -26,10 +27,18 @@ What must already be on the machine:
   web-reading tools work.
 - **The client** you want to use it from: Claude Code, Codex, or both.
 
+Every release on <https://github.com/ToolsEnabled/toolsengine/releases>
+carries the two archives and `SHA256SUMS`, their SHA-256 sums in `sha256sum -c`
+format. Check the archive against it before extracting it, as the first
+step for each system does.
+
 ### Windows
 
-1. Copy the `.zip` to the machine. Right-click it, choose **Extract All**,
-   then open the extracted folder, and the folder inside it, until you see
+1. Copy the `.zip` and `SHA256SUMS` to the machine. In a command window in
+   their folder, `certutil -hashfile toolsengine-VERSION-windows-x64.zip SHA256`
+   prints the archive's SHA-256; it must be the value on the `.zip` line of
+   `SHA256SUMS`. Then right-click the `.zip`, choose **Extract All**, open
+   the extracted folder, and the folder inside it, until you see
    `install.cmd`.
 2. Click the address bar of that folder window, type `cmd` and press Enter. A
    command window opens in that folder.
@@ -44,11 +53,19 @@ What must already be on the machine:
 
 ### Linux
 
+In the folder that holds the archive and `SHA256SUMS`:
+
 ```sh
+sha256sum -c --ignore-missing SHA256SUMS
 tar -xzf toolsengine-VERSION-linux-x64.tar.gz
 cd toolsengine-VERSION-linux-x64
 ./install.sh --register claude codex
 ```
+
+The first line answers `toolsengine-VERSION-linux-x64.tar.gz: OK` and exits 0;
+`--ignore-missing` passes over the Windows archive, which `SHA256SUMS` also
+lists. Without it the check still prints `OK` for the Linux archive but
+reports the Windows one as unreadable and exits 1.
 
 On both systems `node install.mjs` with the same options does the same thing:
 `install.cmd` and `install.sh` only find Node.js and start it.
@@ -58,19 +75,25 @@ Then open a new session in the client. The tools appear under the server name
 
 ### From npm
 
-For a machine that already has Node.js and npm, the package
-`@toolsenabled/toolsengine` installs from the npm registry. This route
-fetches the package and the dependency versions pinned in its
-`npm-shrinkwrap.json` from the network and downloads no browser; it does not
-run the installer, so the client is connected with its own command, as shown
-below.
+The npm package `@toolsenabled/toolsengine` is not on the npm registry yet,
+so `npm install -g @toolsenabled/toolsengine` and `npx -y
+@toolsenabled/toolsengine` do not work until it is published there. The
+package is a file in each release on
+<https://github.com/ToolsEnabled/toolsengine/releases>,
+`toolsenabled-toolsengine-VERSION.tgz`, with its SHA-256 sum in
+`toolsenabled-toolsengine-VERSION.tgz.sha256`. For a machine that already
+has Node.js and npm, install it from that file. This route fetches the
+dependency versions pinned in the package's `npm-shrinkwrap.json` from the
+npm registry and downloads no browser; it does not run the installer, so
+the client is connected with its own command, as shown below.
 
 ```sh
-npm install -g @toolsenabled/toolsengine
+sha256sum -c toolsenabled-toolsengine-VERSION.tgz.sha256
+npm install -g ./toolsenabled-toolsengine-VERSION.tgz
 toolsengine --version
 ```
 
-`toolsengine --version` prints `ToolsEngine 0.1.3`. Start the server with an
+`toolsengine --version` prints `ToolsEngine 0.1.4`. Start the server with an
 existing absolute folder as the workspace and the installed browser by name:
 
 ```
@@ -87,9 +110,7 @@ claude mcp add --scope user toolsengine -- toolsengine --workspace ABSOLUTE_DIRE
 codex mcp add toolsengine -- toolsengine --workspace ABSOLUTE_DIRECTORY --browser-channel chrome
 ```
 
-`npx -y @toolsenabled/toolsengine` in place of `toolsengine` runs the package
-without installing it; npm fetches it into its cache on first use. The
-release archives, the package tarball and their SHA-256 sums are on the
+The release archives, the package file and their SHA-256 sums are on the
 project's releases page, <https://github.com/ToolsEnabled/toolsengine/releases>.
 Questions and problems go to <support@toolsenabled.ai> or to
 <https://github.com/ToolsEnabled/toolsengine/issues>.
@@ -750,8 +771,10 @@ refuses pending calls and interrupts active browser/desktop work. Already
 delivered input may have applied. This package has no package-provided on-screen
 indicator or emergency stop key. Use a supported host's visible controls and
 verify their behavior before enabling control. No per-action approval or
-sensitive-entry takeover is enforced here. Security/support contact and
-public distribution privacy commitments must be supplied by the distributor.
+sensitive-entry takeover is enforced here. Security and support contact:
+<support@toolsenabled.ai>; the security policy, with its safe harbor for
+good-faith research, is <https://toolsenabled.ai/security/>, stated for this
+package in `SECURITY.md`.
 
 ## Verification
 
@@ -763,7 +786,7 @@ npm run audit:package
 npm audit --omit=dev
 ```
 
-`npm run audit:package` packs the package and refuses anything but its 21
+`npm run audit:package` packs the package and refuses anything but its 22
 files, scans them for internal material, and compares both tool catalogues
 with the running server and with `reference/curation.json`, the record of
 the decision taken for each of the 261 tools of the public ToolsEnabled
@@ -833,6 +856,28 @@ lifecycle and browser tests; upstream tools never become public automatically.
 ## Responsive layout checks (new in 0.1.3)
 
 `browser.resize` sets the selected tab viewport, using integer CSS pixels: width 320–3840 and height 240–2160. For a narrow layout, use `{"width":390,"height":844}`; then inspect a fresh snapshot or screenshot. It preserves the page and other tabs. The selected tab in an explicitly attached browser is affected too. This is responsive viewport sizing, not phone, touch, user-agent or operating-system window emulation. No new browser connection, profile, arbitrary script, or credential access is added.
+
+## Changes in 0.1.4
+
+A patch release of 0.1.3, from the defects a new user found installing it
+from the release page. The server and its tools are unchanged.
+
+- The README says that `@toolsenabled/toolsengine` is not on the npm
+  registry yet and shows the route that works: `npm install -g` of the
+  `toolsenabled-toolsengine-VERSION.tgz` file from the release, after
+  checking it against its `.sha256` file.
+- The README checks an archive before extracting it: `sha256sum -c
+  --ignore-missing SHA256SUMS` on Linux (without `--ignore-missing` the
+  check also reports the Windows archive, which the file lists, and exits
+  1), `certutil -hashfile` on Windows.
+- `SECURITY.md`, the security policy with its safe harbor, is a file of the
+  package (22 files now) and sits at the top of each release archive beside
+  LICENSE and NOTICE; INSTALL.txt lists it. The README names the security
+  and support contact, <support@toolsenabled.ai>, and the policy page in
+  place of the sentence that left them to "the distributor".
+- The installer answers a bare `--version` on the install command with the
+  same explanation as `--version VALUE` ("--version is for register, check,
+  list and uninstall...") instead of "--version needs a value".
 
 ## Changes in 0.1.3
 

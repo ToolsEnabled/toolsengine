@@ -18,7 +18,7 @@ for (const file of packed.files) {
   assert.ok(!file.path.startsWith('/') && !file.path.split('/').includes('..'));
   assert.ok(file.mode & 0o004, `File not readable after normal shared installation: ${file.path}`);
 }
-for (const name of ['LICENSE', 'NOTICE', 'README.md', 'npm-shrinkwrap.json', 'bin/toolsengine.js', 'docs/clients.md', 'docs/tool-catalogue.json', 'docs/desktop-catalogue.json', 'native/accessibility-desktop.cjs', 'native/accessibility-desktop.ps1', 'src/desktop.js'])
+for (const name of ['LICENSE', 'NOTICE', 'README.md', 'SECURITY.md', 'npm-shrinkwrap.json', 'bin/toolsengine.js', 'docs/clients.md', 'docs/tool-catalogue.json', 'docs/desktop-catalogue.json', 'native/accessibility-desktop.cjs', 'native/accessibility-desktop.ps1', 'src/desktop.js'])
   assert.ok(packed.files.some(f => f.path === name), `Missing required file: ${name}`);
 assert.ok(packed.files.find(f => f.path === 'bin/toolsengine.js').mode & 0o111, 'CLI is not executable');
 // Development records stay in the source repository. Nothing in the archive

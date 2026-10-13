@@ -44,7 +44,7 @@ test('the documents that ship use no name that only means something where this w
   // "LIVE" is the name of one build of the ToolsEnabled desktop app, "Fleet"
   // of another ToolsEnabled product. A stranger reading the README or the
   // NOTICE knows neither.
-  for (const name of ['README.md', 'NOTICE', 'docs/clients.md']) {
+  for (const name of ['README.md', 'NOTICE', 'SECURITY.md', 'docs/clients.md']) {
     const text = fs.readFileSync(path.join(PACKAGE, name), 'utf8');
     assert.doesNotMatch(text, /\bLIVE\b/, `${name} names the LIVE app`);
     assert.doesNotMatch(text, /\bFleet\b/, `${name} names Fleet`);

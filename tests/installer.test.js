@@ -52,6 +52,11 @@ test('command line: commands, client lists in every spelling, and refusals', () 
     // An empty value must not turn into the folder the installer was started in.
     ['--workspace', ''], ['--home', ''], ['--install-root', '  '], ['--name', ''], ['--browser', ''], ['uninstall', '--version', '']])
     assert.throws(() => parseArgs(bad), Stop, `accepted: ${bad.join(' ')}`);
+  // On the install command the refusal explains itself whether or not a value
+  // follows: a bare --version used to be answered with "needs a value".
+  for (const args of [['--version'], ['--version', '9.9.9'], ['--dry-run', '--version'], ['install', '--version'], ['install', '--version', '9.9.9']])
+    assert.throws(() => parseArgs(args), error => error instanceof Stop && /^--version is for register, check, list and uninstall\./.test(error.message), `wrong refusal: ${args.join(' ')}`);
+  assert.throws(() => parseArgs(['uninstall', '--version']), error => error instanceof Stop && /^--version needs a value\./.test(error.message));
 });
 
 test('browser search: Chrome before Edge, in the places Playwright looks', () => {

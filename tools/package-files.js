@@ -12,6 +12,7 @@ export const PACKAGE_FILES = Object.freeze([
   'LICENSE',
   'NOTICE',
   'README.md',
+  'SECURITY.md',
   'bin/toolsengine.js',
   'docs/clients.md',
   'docs/desktop-catalogue.json',

@@ -1,6 +1,6 @@
 {
   "name": "@toolsenabled/toolsengine",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Portable, curated ToolsEngine capabilities over stdio MCP.",
   "type": "module",
   "license": "MIT",
@@ -28,6 +28,7 @@
     "README.md",
     "LICENSE",
     "NOTICE",
+    "SECURITY.md",
     "npm-shrinkwrap.json",
     "native",
     "tests/browser-extension.test.js",
