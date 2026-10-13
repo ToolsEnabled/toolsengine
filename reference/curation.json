@@ -1,0 +1,1669 @@
+{
+  "record": "Public copy of the curation record that is kept beside the source repository (reference/curation.json there): the decision, reason and public replacements for each of the 261 core tools declared by the public ToolsEnabled engine at the commit under \"source\", without the live-source fields. tools/audit-package.js reads it when the source record is absent and checks it against the source record otherwise.",
+  "version": "0.1.3",
+  "source": {
+    "repo": "https://github.com/ToolsEnabled/toolsenabled-engine",
+    "main": "1fe5317abe0cb624cf8fdfd1c7aa3a3696d629c9",
+    "tree": "351a87cd44d5d7fc13cc98ab19e215a178b074df",
+    "mainDate": "2026-09-28T00:46:56-07:00",
+    "releaseTag": "v1.0.48",
+    "releaseCommit": "1fbadd0bd7091206ab7064b6d134c5a6619ac9d8",
+    "registrySha256": "8084abe35399b44e15e65af1f73da8bff516e84b617d33321049d6025acd2c86",
+    "declaredCoreToolCount": 261
+  },
+  "sourceMethod": "Latest public main reviewed as source; new portable implementation. No legacy engine registry/provider modules are loaded.",
+  "sourceDefinitionScope": "261 explicit core define declarations; optional owner tool packs are not counted or shipped.",
+  "counts": {
+    "replace": 27,
+    "separate": 40,
+    "exclude": 75,
+    "defer": 119
+  },
+  "publicToolCount": 27,
+  "optionalWindowsDesktopToolCount": 4,
+  "tools": [
+    {
+      "id": "a_ledger.answer",
+      "decision": "separate",
+      "publicTools": [],
+      "reason": "Fleet owns delegation, durable coordination and ledgers. Install/configure Fleet separately; this package neither loads nor modifies it."
+    },
+    {
+      "id": "a_ledger.decline",
+      "decision": "separate",
+      "publicTools": [],
+      "reason": "Fleet owns delegation, durable coordination and ledgers. Install/configure Fleet separately; this package neither loads nor modifies it."
+    },
+    {
+      "id": "a_ledger.file",
+      "decision": "separate",
+      "publicTools": [],
+      "reason": "Fleet owns delegation, durable coordination and ledgers. Install/configure Fleet separately; this package neither loads nor modifies it."
+    },
+    {
+      "id": "accessibility.inspect",
+      "decision": "replace",
+      "publicTools": [
+        "desktop.inspect"
+      ],
+      "reason": "Optional Windows desktop adapter selected at startup. Same current account/session, observed window IDs, bounded UIA and window capture; pointer input uses a fresh single-use image. A new standalone MCP contract, not legacy host grant/session compatibility. Native Linux desktop remains deferred."
+    },
+    {
+      "id": "accessibility.propose",
+      "decision": "replace",
+      "publicTools": [
+        "desktop.act"
+      ],
+      "reason": "Optional Windows desktop adapter selected at startup. Same current account/session, observed window IDs, bounded UIA and window capture; pointer input uses a fresh single-use image. A new standalone MCP contract, not legacy host grant/session compatibility. Native Linux desktop remains deferred."
+    },
+    {
+      "id": "accessibility.status",
+      "decision": "replace",
+      "publicTools": [
+        "system.status"
+      ],
+      "reason": "Optional Windows desktop adapter selected at startup. Same current account/session, observed window IDs, bounded UIA and window capture; pointer input uses a fresh single-use image. A new standalone MCP contract, not legacy host grant/session compatibility. Native Linux desktop remains deferred."
+    },
+    {
+      "id": "agent.remove",
+      "decision": "separate",
+      "publicTools": [],
+      "reason": "Fleet owns delegation, durable coordination and ledgers. Install/configure Fleet separately; this package neither loads nor modifies it."
+    },
+    {
+      "id": "agent.restart",
+      "decision": "separate",
+      "publicTools": [],
+      "reason": "Fleet owns delegation, durable coordination and ledgers. Install/configure Fleet separately; this package neither loads nor modifies it."
+    },
+    {
+      "id": "agent.resume",
+      "decision": "separate",
+      "publicTools": [],
+      "reason": "Fleet owns delegation, durable coordination and ledgers. Install/configure Fleet separately; this package neither loads nor modifies it."
+    },
+    {
+      "id": "agent.set_account",
+      "decision": "separate",
+      "publicTools": [],
+      "reason": "Fleet owns delegation, durable coordination and ledgers. Install/configure Fleet separately; this package neither loads nor modifies it."
+    },
+    {
+      "id": "agent.set_effort",
+      "decision": "separate",
+      "publicTools": [],
+      "reason": "Fleet owns delegation, durable coordination and ledgers. Install/configure Fleet separately; this package neither loads nor modifies it."
+    },
+    {
+      "id": "agent.set_model",
+      "decision": "separate",
+      "publicTools": [],
+      "reason": "Fleet owns delegation, durable coordination and ledgers. Install/configure Fleet separately; this package neither loads nor modifies it."
+    },
+    {
+      "id": "agent.set_provider",
+      "decision": "separate",
+      "publicTools": [],
+      "reason": "Fleet owns delegation, durable coordination and ledgers. Install/configure Fleet separately; this package neither loads nor modifies it."
+    },
+    {
+      "id": "agent.set_role",
+      "decision": "separate",
+      "publicTools": [],
+      "reason": "Fleet owns delegation, durable coordination and ledgers. Install/configure Fleet separately; this package neither loads nor modifies it."
+    },
+    {
+      "id": "agent.spawn",
+      "decision": "separate",
+      "publicTools": [],
+      "reason": "Fleet owns delegation, durable coordination and ledgers. Install/configure Fleet separately; this package neither loads nor modifies it."
+    },
+    {
+      "id": "agent.stop",
+      "decision": "separate",
+      "publicTools": [],
+      "reason": "Fleet owns delegation, durable coordination and ledgers. Install/configure Fleet separately; this package neither loads nor modifies it."
+    },
+    {
+      "id": "agent_comms.acknowledge",
+      "decision": "separate",
+      "publicTools": [],
+      "reason": "Fleet owns delegation, durable coordination and ledgers. Install/configure Fleet separately; this package neither loads nor modifies it."
+    },
+    {
+      "id": "agent_comms.local_roster",
+      "decision": "separate",
+      "publicTools": [],
+      "reason": "Fleet owns delegation, durable coordination and ledgers. Install/configure Fleet separately; this package neither loads nor modifies it."
+    },
+    {
+      "id": "agent_comms.read",
+      "decision": "separate",
+      "publicTools": [],
+      "reason": "Fleet owns delegation, durable coordination and ledgers. Install/configure Fleet separately; this package neither loads nor modifies it."
+    },
+    {
+      "id": "agent_comms.send",
+      "decision": "separate",
+      "publicTools": [],
+      "reason": "Fleet owns delegation, durable coordination and ledgers. Install/configure Fleet separately; this package neither loads nor modifies it."
+    },
+    {
+      "id": "agent_comms.send_local",
+      "decision": "separate",
+      "publicTools": [],
+      "reason": "Fleet owns delegation, durable coordination and ledgers. Install/configure Fleet separately; this package neither loads nor modifies it."
+    },
+    {
+      "id": "app.context",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Privileged execution, broad HTTP/host control or product-internal runtime configuration is outside this package. Use an independently configured client or integration."
+    },
+    {
+      "id": "app.navigate",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Privileged execution, broad HTTP/host control or product-internal runtime configuration is outside this package. Use an independently configured client or integration."
+    },
+    {
+      "id": "audit.flush",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "audit.status",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "audit.tail",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "audit.verify",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "billing.checkout_status",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Credential/account custody, owner-consent controls or financial operations do not belong in this general browser/workspace shipment."
+    },
+    {
+      "id": "billing.webhook_verify",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Credential/account custody, owner-consent controls or financial operations do not belong in this general browser/workspace shipment."
+    },
+    {
+      "id": "browser.playwright_call",
+      "decision": "replace",
+      "publicTools": [
+        "browser.click",
+        "browser.close",
+        "browser.drag",
+        "browser.file_upload",
+        "browser.fill_form",
+        "browser.find",
+        "browser.handle_dialog",
+        "browser.hover",
+        "browser.navigate",
+        "browser.navigate_back",
+        "browser.pdf_save",
+        "browser.press_key",
+        "browser.resize",
+        "browser.select_option",
+        "browser.snapshot",
+        "browser.tabs",
+        "browser.take_screenshot",
+        "browser.type",
+        "browser.wait_for"
+      ],
+      "reason": "Explicit reviewed browser methods replace the generic legacy gateway. Dedicated default; optional startup-selected CDP attachment."
+    },
+    {
+      "id": "browser.playwright_status",
+      "decision": "replace",
+      "publicTools": [
+        "system.status",
+        "browser.tabs"
+      ],
+      "reason": "Explicit reviewed browser methods replace the generic legacy gateway. Dedicated default; optional startup-selected CDP attachment."
+    },
+    {
+      "id": "browser.playwright_tools",
+      "decision": "replace",
+      "publicTools": [
+        "capability.find"
+      ],
+      "reason": "Explicit reviewed browser methods replace the generic legacy gateway. Dedicated default; optional startup-selected CDP attachment."
+    },
+    {
+      "id": "browser.start",
+      "decision": "replace",
+      "publicTools": [
+        "browser.navigate"
+      ],
+      "reason": "Explicit reviewed browser methods replace the generic legacy gateway. Dedicated default; optional startup-selected CDP attachment."
+    },
+    {
+      "id": "browser.status",
+      "decision": "replace",
+      "publicTools": [
+        "system.status",
+        "browser.tabs"
+      ],
+      "reason": "Explicit reviewed browser methods replace the generic legacy gateway. Dedicated default; optional startup-selected CDP attachment."
+    },
+    {
+      "id": "browser.stop",
+      "decision": "replace",
+      "publicTools": [
+        "browser.close"
+      ],
+      "reason": "Explicit reviewed browser methods replace the generic legacy gateway. Dedicated default; optional startup-selected CDP attachment."
+    },
+    {
+      "id": "browser.web_inspector_call",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "browser.web_inspector_close",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "browser.web_inspector_open",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "browser.web_inspector_status",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "build_queue.claim",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "build_queue.close",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "build_queue.open",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "calendar.create",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "calendar.list",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "capability.find",
+      "decision": "replace",
+      "publicTools": [
+        "capability.find"
+      ],
+      "reason": "Portable implementation with bounded public schema; legacy policy/credential/runtime dependencies are not imported."
+    },
+    {
+      "id": "clipboard.read",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "clipboard.write",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "cloud.account_add",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Credential/account custody, owner-consent controls or financial operations do not belong in this general browser/workspace shipment."
+    },
+    {
+      "id": "cloud.account_list",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Credential/account custody, owner-consent controls or financial operations do not belong in this general browser/workspace shipment."
+    },
+    {
+      "id": "cloud.account_remove",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Credential/account custody, owner-consent controls or financial operations do not belong in this general browser/workspace shipment."
+    },
+    {
+      "id": "cloud.task_diff",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Privileged execution, broad HTTP/host control or product-internal runtime configuration is outside this package. Use an independently configured client or integration."
+    },
+    {
+      "id": "cloud.task_launch",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Privileged execution, broad HTTP/host control or product-internal runtime configuration is outside this package. Use an independently configured client or integration."
+    },
+    {
+      "id": "cloud.task_list",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Privileged execution, broad HTTP/host control or product-internal runtime configuration is outside this package. Use an independently configured client or integration."
+    },
+    {
+      "id": "cloud.task_status",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Privileged execution, broad HTTP/host control or product-internal runtime configuration is outside this package. Use an independently configured client or integration."
+    },
+    {
+      "id": "code.diagnostics",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "code.document_symbols",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "code.find_references",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "code.goto_definition",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "code.hover",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "code.status",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "code.workspace_symbols",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "deployment.detect",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "deployment.execute",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "drive.delete",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "drive.find",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "drive.upload",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "duo.desktop_status",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "extension.package",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "extension.validate",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "firebase.account_login",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Credential/account custody, owner-consent controls or financial operations do not belong in this general browser/workspace shipment."
+    },
+    {
+      "id": "firebase.app_create",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "firebase.deploy",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "firebase.doctor",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "firebase.firestore_create",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "firebase.project_create",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "firebase.project_enable",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "gcloud.account_inspect",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Credential/account custody, owner-consent controls or financial operations do not belong in this general browser/workspace shipment."
+    },
+    {
+      "id": "gcloud.account_login",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Credential/account custody, owner-consent controls or financial operations do not belong in this general browser/workspace shipment."
+    },
+    {
+      "id": "gcloud.doctor",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "gcloud.project_create",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "gcloud.service_account_create",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Credential/account custody, owner-consent controls or financial operations do not belong in this general browser/workspace shipment."
+    },
+    {
+      "id": "gcloud.service_account_key_to_vault",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Credential/account custody, owner-consent controls or financial operations do not belong in this general browser/workspace shipment."
+    },
+    {
+      "id": "gcloud.services_enable",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "github.issue_comment_create",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "github.issue_create",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "github.issue_get",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "github.issue_list",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "github.pull_request_create",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "github.pull_request_get",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "github.pull_request_list",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "github.release_create",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "github.release_list",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "github.repo_get",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "github.repository_dispatch",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "gmail.list",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "gmail.send",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "google.accounts",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Credential/account custody, owner-consent controls or financial operations do not belong in this general browser/workspace shipment."
+    },
+    {
+      "id": "host.exec",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Privileged execution, broad HTTP/host control or product-internal runtime configuration is outside this package. Use an independently configured client or integration."
+    },
+    {
+      "id": "host.list_dir",
+      "decision": "replace",
+      "publicTools": [
+        "workspace.list"
+      ],
+      "reason": "Workspace-only UTF-8 operations replace profile/repository-wide legacy handlers; writes require a current content hash. Legacy receipt/patch protocol is not imported."
+    },
+    {
+      "id": "host.list_processes",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "host.patch_file",
+      "decision": "replace",
+      "publicTools": [
+        "workspace.read_file",
+        "workspace.write_file"
+      ],
+      "reason": "Workspace-only UTF-8 operations replace profile/repository-wide legacy handlers; writes require a current content hash. Legacy receipt/patch protocol is not imported."
+    },
+    {
+      "id": "host.read_file",
+      "decision": "replace",
+      "publicTools": [
+        "workspace.read_file"
+      ],
+      "reason": "Workspace-only UTF-8 operations replace profile/repository-wide legacy handlers; writes require a current content hash. Legacy receipt/patch protocol is not imported."
+    },
+    {
+      "id": "host.write_file",
+      "decision": "replace",
+      "publicTools": [
+        "workspace.write_file"
+      ],
+      "reason": "Workspace-only UTF-8 operations replace profile/repository-wide legacy handlers; writes require a current content hash. Legacy receipt/patch protocol is not imported."
+    },
+    {
+      "id": "http.request",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Privileged execution, broad HTTP/host control or product-internal runtime configuration is outside this package. Use an independently configured client or integration."
+    },
+    {
+      "id": "ide.consent_import",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Credential/account custody, owner-consent controls or financial operations do not belong in this general browser/workspace shipment."
+    },
+    {
+      "id": "ide.consent_read",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Credential/account custody, owner-consent controls or financial operations do not belong in this general browser/workspace shipment."
+    },
+    {
+      "id": "ide.consent_remove",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Credential/account custody, owner-consent controls or financial operations do not belong in this general browser/workspace shipment."
+    },
+    {
+      "id": "instagram.publish_image",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "instagram.verify",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "iphone.handoff_status",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "launch.detect",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "launch.execute",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "launch.plan",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "ledger.read",
+      "decision": "separate",
+      "publicTools": [],
+      "reason": "Fleet owns delegation, durable coordination and ledgers. Install/configure Fleet separately; this package neither loads nor modifies it."
+    },
+    {
+      "id": "memory.get",
+      "decision": "separate",
+      "publicTools": [],
+      "reason": "Fleet owns delegation, durable coordination and ledgers. Install/configure Fleet separately; this package neither loads nor modifies it."
+    },
+    {
+      "id": "memory.search",
+      "decision": "separate",
+      "publicTools": [],
+      "reason": "Fleet owns delegation, durable coordination and ledgers. Install/configure Fleet separately; this package neither loads nor modifies it."
+    },
+    {
+      "id": "memory.set",
+      "decision": "separate",
+      "publicTools": [],
+      "reason": "Fleet owns delegation, durable coordination and ledgers. Install/configure Fleet separately; this package neither loads nor modifies it."
+    },
+    {
+      "id": "model.complete",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Privileged execution, broad HTTP/host control or product-internal runtime configuration is outside this package. Use an independently configured client or integration."
+    },
+    {
+      "id": "model.customer_complete",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Privileged execution, broad HTTP/host control or product-internal runtime configuration is outside this package. Use an independently configured client or integration."
+    },
+    {
+      "id": "model.quick_edit",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Privileged execution, broad HTTP/host control or product-internal runtime configuration is outside this package. Use an independently configured client or integration."
+    },
+    {
+      "id": "model.role_complete",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Privileged execution, broad HTTP/host control or product-internal runtime configuration is outside this package. Use an independently configured client or integration."
+    },
+    {
+      "id": "ocr.read",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "overnight_advisory.lifecycle",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Privileged execution, broad HTTP/host control or product-internal runtime configuration is outside this package. Use an independently configured client or integration."
+    },
+    {
+      "id": "overnight_advisory.lifecycle_status",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Privileged execution, broad HTTP/host control or product-internal runtime configuration is outside this package. Use an independently configured client or integration."
+    },
+    {
+      "id": "overnight_advisory.list",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Privileged execution, broad HTTP/host control or product-internal runtime configuration is outside this package. Use an independently configured client or integration."
+    },
+    {
+      "id": "overnight_advisory.status",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Privileged execution, broad HTTP/host control or product-internal runtime configuration is outside this package. Use an independently configured client or integration."
+    },
+    {
+      "id": "overnight_advisory.submit",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Privileged execution, broad HTTP/host control or product-internal runtime configuration is outside this package. Use an independently configured client or integration."
+    },
+    {
+      "id": "owner_forms.describe",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Credential/account custody, owner-consent controls or financial operations do not belong in this general browser/workspace shipment."
+    },
+    {
+      "id": "owner_prompts.cancel",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Credential/account custody, owner-consent controls or financial operations do not belong in this general browser/workspace shipment."
+    },
+    {
+      "id": "owner_prompts.events",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Credential/account custody, owner-consent controls or financial operations do not belong in this general browser/workspace shipment."
+    },
+    {
+      "id": "owner_prompts.start",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Credential/account custody, owner-consent controls or financial operations do not belong in this general browser/workspace shipment."
+    },
+    {
+      "id": "owner_prompts.status",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Credential/account custody, owner-consent controls or financial operations do not belong in this general browser/workspace shipment."
+    },
+    {
+      "id": "p_ledger.decide",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Credential/account custody, owner-consent controls or financial operations do not belong in this general browser/workspace shipment."
+    },
+    {
+      "id": "paddle.catalog_list",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Credential/account custody, owner-consent controls or financial operations do not belong in this general browser/workspace shipment."
+    },
+    {
+      "id": "paddle.doctor",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Credential/account custody, owner-consent controls or financial operations do not belong in this general browser/workspace shipment."
+    },
+    {
+      "id": "paddle.subscription_cancel",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Credential/account custody, owner-consent controls or financial operations do not belong in this general browser/workspace shipment."
+    },
+    {
+      "id": "paddle.subscription_get",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Credential/account custody, owner-consent controls or financial operations do not belong in this general browser/workspace shipment."
+    },
+    {
+      "id": "paddle.transaction_cancel",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Credential/account custody, owner-consent controls or financial operations do not belong in this general browser/workspace shipment."
+    },
+    {
+      "id": "paddle.transaction_get",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Credential/account custody, owner-consent controls or financial operations do not belong in this general browser/workspace shipment."
+    },
+    {
+      "id": "paddle.transaction_verify",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Credential/account custody, owner-consent controls or financial operations do not belong in this general browser/workspace shipment."
+    },
+    {
+      "id": "paddle.webhook_verify",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Credential/account custody, owner-consent controls or financial operations do not belong in this general browser/workspace shipment."
+    },
+    {
+      "id": "pay.check",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Credential/account custody, owner-consent controls or financial operations do not belong in this general browser/workspace shipment."
+    },
+    {
+      "id": "pay.record",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Credential/account custody, owner-consent controls or financial operations do not belong in this general browser/workspace shipment."
+    },
+    {
+      "id": "payment_method.card_register",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Credential/account custody, owner-consent controls or financial operations do not belong in this general browser/workspace shipment."
+    },
+    {
+      "id": "payment_method.card_status",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Credential/account custody, owner-consent controls or financial operations do not belong in this general browser/workspace shipment."
+    },
+    {
+      "id": "personal_calendar.capture",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "personal_calendar.complete",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "personal_calendar.create",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "personal_calendar.due",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "personal_calendar.list",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "purchase.decision",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Credential/account custody, owner-consent controls or financial operations do not belong in this general browser/workspace shipment."
+    },
+    {
+      "id": "purchase.request",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Credential/account custody, owner-consent controls or financial operations do not belong in this general browser/workspace shipment."
+    },
+    {
+      "id": "r_ledger.file",
+      "decision": "separate",
+      "publicTools": [],
+      "reason": "Fleet owns delegation, durable coordination and ledgers. Install/configure Fleet separately; this package neither loads nor modifies it."
+    },
+    {
+      "id": "r_ledger.propose",
+      "decision": "separate",
+      "publicTools": [],
+      "reason": "Fleet owns delegation, durable coordination and ledgers. Install/configure Fleet separately; this package neither loads nor modifies it."
+    },
+    {
+      "id": "repo.list_dir",
+      "decision": "replace",
+      "publicTools": [
+        "workspace.list"
+      ],
+      "reason": "Workspace-only UTF-8 operations replace profile/repository-wide legacy handlers; writes require a current content hash. Legacy receipt/patch protocol is not imported."
+    },
+    {
+      "id": "repo.patch_file",
+      "decision": "replace",
+      "publicTools": [
+        "workspace.read_file",
+        "workspace.write_file"
+      ],
+      "reason": "Workspace-only UTF-8 operations replace profile/repository-wide legacy handlers; writes require a current content hash. Legacy receipt/patch protocol is not imported."
+    },
+    {
+      "id": "repo.read_file",
+      "decision": "replace",
+      "publicTools": [
+        "workspace.read_file"
+      ],
+      "reason": "Workspace-only UTF-8 operations replace profile/repository-wide legacy handlers; writes require a current content hash. Legacy receipt/patch protocol is not imported."
+    },
+    {
+      "id": "repo.write_file",
+      "decision": "replace",
+      "publicTools": [
+        "workspace.write_file"
+      ],
+      "reason": "Workspace-only UTF-8 operations replace profile/repository-wide legacy handlers; writes require a current content hash. Legacy receipt/patch protocol is not imported."
+    },
+    {
+      "id": "research.finding_list",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "research.finding_save",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "research.hermes_complete",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "research.lifecycle",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "research.lifecycle_status",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "research.local_tiers_status",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "research.project_list",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "research.result_list",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "research.run_list",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "research.run_status",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "research.run_submit",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "research.session_assign",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "research.session_context",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "research.strong_complete",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "sandbox.artifact_read",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Privileged execution, broad HTTP/host control or product-internal runtime configuration is outside this package. Use an independently configured client or integration."
+    },
+    {
+      "id": "sandbox.artifacts",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Privileged execution, broad HTTP/host control or product-internal runtime configuration is outside this package. Use an independently configured client or integration."
+    },
+    {
+      "id": "sandbox.auth_profile_create",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Privileged execution, broad HTTP/host control or product-internal runtime configuration is outside this package. Use an independently configured client or integration."
+    },
+    {
+      "id": "sandbox.auth_profile_heartbeat",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Privileged execution, broad HTTP/host control or product-internal runtime configuration is outside this package. Use an independently configured client or integration."
+    },
+    {
+      "id": "sandbox.auth_profile_lease",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Privileged execution, broad HTTP/host control or product-internal runtime configuration is outside this package. Use an independently configured client or integration."
+    },
+    {
+      "id": "sandbox.auth_profile_release",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Privileged execution, broad HTTP/host control or product-internal runtime configuration is outside this package. Use an independently configured client or integration."
+    },
+    {
+      "id": "sandbox.auth_profile_revoke",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Privileged execution, broad HTTP/host control or product-internal runtime configuration is outside this package. Use an independently configured client or integration."
+    },
+    {
+      "id": "sandbox.auth_profile_status",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Privileged execution, broad HTTP/host control or product-internal runtime configuration is outside this package. Use an independently configured client or integration."
+    },
+    {
+      "id": "sandbox.cleanup",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Privileged execution, broad HTTP/host control or product-internal runtime configuration is outside this package. Use an independently configured client or integration."
+    },
+    {
+      "id": "sandbox.create",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Privileged execution, broad HTTP/host control or product-internal runtime configuration is outside this package. Use an independently configured client or integration."
+    },
+    {
+      "id": "sandbox.doctor",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Privileged execution, broad HTTP/host control or product-internal runtime configuration is outside this package. Use an independently configured client or integration."
+    },
+    {
+      "id": "sandbox.exec",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Privileged execution, broad HTTP/host control or product-internal runtime configuration is outside this package. Use an independently configured client or integration."
+    },
+    {
+      "id": "sandbox.heartbeat",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Privileged execution, broad HTTP/host control or product-internal runtime configuration is outside this package. Use an independently configured client or integration."
+    },
+    {
+      "id": "sandbox.reap",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Privileged execution, broad HTTP/host control or product-internal runtime configuration is outside this package. Use an independently configured client or integration."
+    },
+    {
+      "id": "sandbox.status",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Privileged execution, broad HTTP/host control or product-internal runtime configuration is outside this package. Use an independently configured client or integration."
+    },
+    {
+      "id": "sandbox.workspace_read",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Privileged execution, broad HTTP/host control or product-internal runtime configuration is outside this package. Use an independently configured client or integration."
+    },
+    {
+      "id": "sandbox.workspace_write",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Privileged execution, broad HTTP/host control or product-internal runtime configuration is outside this package. Use an independently configured client or integration."
+    },
+    {
+      "id": "scheduler.create",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "scheduler.list",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "scheduler.reconcile",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "scheduler.remove",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "screen.capture",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "screen.capture_monitor",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "screen.capture_region",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "screen.capture_window",
+      "decision": "replace",
+      "publicTools": [
+        "desktop.capture"
+      ],
+      "reason": "Optional Windows desktop adapter selected at startup. Same current account/session, observed window IDs, bounded UIA and window capture; pointer input uses a fresh single-use image. A new standalone MCP contract, not legacy host grant/session compatibility. Native Linux desktop remains deferred."
+    },
+    {
+      "id": "screen.control",
+      "decision": "replace",
+      "publicTools": [
+        "desktop.pointer",
+        "desktop.act"
+      ],
+      "reason": "Optional Windows desktop adapter selected at startup. Same current account/session, observed window IDs, bounded UIA and window capture; pointer input uses a fresh single-use image. A new standalone MCP contract, not legacy host grant/session compatibility. Native Linux desktop remains deferred."
+    },
+    {
+      "id": "screen.list_monitors",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "screen.read_capture",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "screen.status",
+      "decision": "replace",
+      "publicTools": [
+        "system.status"
+      ],
+      "reason": "Optional Windows desktop adapter selected at startup. Same current account/session, observed window IDs, bounded UIA and window capture; pointer input uses a fresh single-use image. A new standalone MCP contract, not legacy host grant/session compatibility. Native Linux desktop remains deferred."
+    },
+    {
+      "id": "search.index",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "search.query",
+      "decision": "replace",
+      "publicTools": [
+        "workspace.search"
+      ],
+      "reason": "Bounded literal workspace search; no legacy persistent index."
+    },
+    {
+      "id": "search.status",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "settings.read",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Privileged execution, broad HTTP/host control or product-internal runtime configuration is outside this package. Use an independently configured client or integration."
+    },
+    {
+      "id": "sound.play",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "stripe.cardholder_create",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Credential/account custody, owner-consent controls or financial operations do not belong in this general browser/workspace shipment."
+    },
+    {
+      "id": "stripe.virtual_card_create",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Credential/account custody, owner-consent controls or financial operations do not belong in this general browser/workspace shipment."
+    },
+    {
+      "id": "system.ask",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "system.credential_remove",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Credential/account custody, owner-consent controls or financial operations do not belong in this general browser/workspace shipment."
+    },
+    {
+      "id": "system.credential_request",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Credential/account custody, owner-consent controls or financial operations do not belong in this general browser/workspace shipment."
+    },
+    {
+      "id": "system.doctor",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "system.kill_switch_activate",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Credential/account custody, owner-consent controls or financial operations do not belong in this general browser/workspace shipment."
+    },
+    {
+      "id": "system.kill_switch_status",
+      "decision": "exclude",
+      "publicTools": [],
+      "reason": "Credential/account custody, owner-consent controls or financial operations do not belong in this general browser/workspace shipment."
+    },
+    {
+      "id": "system.notify",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "system.resource_advice",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "system.resource_status",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "system.status",
+      "decision": "replace",
+      "publicTools": [
+        "system.status"
+      ],
+      "reason": "Portable implementation with bounded public schema; legacy policy/credential/runtime dependencies are not imported."
+    },
+    {
+      "id": "t_ledger.assign",
+      "decision": "separate",
+      "publicTools": [],
+      "reason": "Fleet owns delegation, durable coordination and ledgers. Install/configure Fleet separately; this package neither loads nor modifies it."
+    },
+    {
+      "id": "t_ledger.complete",
+      "decision": "separate",
+      "publicTools": [],
+      "reason": "Fleet owns delegation, durable coordination and ledgers. Install/configure Fleet separately; this package neither loads nor modifies it."
+    },
+    {
+      "id": "t_ledger.file",
+      "decision": "separate",
+      "publicTools": [],
+      "reason": "Fleet owns delegation, durable coordination and ledgers. Install/configure Fleet separately; this package neither loads nor modifies it."
+    },
+    {
+      "id": "t_ledger.progress",
+      "decision": "separate",
+      "publicTools": [],
+      "reason": "Fleet owns delegation, durable coordination and ledgers. Install/configure Fleet separately; this package neither loads nor modifies it."
+    },
+    {
+      "id": "t_ledger.remove",
+      "decision": "separate",
+      "publicTools": [],
+      "reason": "Fleet owns delegation, durable coordination and ledgers. Install/configure Fleet separately; this package neither loads nor modifies it."
+    },
+    {
+      "id": "t_ledger.review",
+      "decision": "separate",
+      "publicTools": [],
+      "reason": "Fleet owns delegation, durable coordination and ledgers. Install/configure Fleet separately; this package neither loads nor modifies it."
+    },
+    {
+      "id": "task.cancel",
+      "decision": "separate",
+      "publicTools": [],
+      "reason": "Fleet owns delegation, durable coordination and ledgers. Install/configure Fleet separately; this package neither loads nor modifies it."
+    },
+    {
+      "id": "task.checkpoint",
+      "decision": "separate",
+      "publicTools": [],
+      "reason": "Fleet owns delegation, durable coordination and ledgers. Install/configure Fleet separately; this package neither loads nor modifies it."
+    },
+    {
+      "id": "task.claim",
+      "decision": "separate",
+      "publicTools": [],
+      "reason": "Fleet owns delegation, durable coordination and ledgers. Install/configure Fleet separately; this package neither loads nor modifies it."
+    },
+    {
+      "id": "task.complete",
+      "decision": "separate",
+      "publicTools": [],
+      "reason": "Fleet owns delegation, durable coordination and ledgers. Install/configure Fleet separately; this package neither loads nor modifies it."
+    },
+    {
+      "id": "task.fail",
+      "decision": "separate",
+      "publicTools": [],
+      "reason": "Fleet owns delegation, durable coordination and ledgers. Install/configure Fleet separately; this package neither loads nor modifies it."
+    },
+    {
+      "id": "task.get",
+      "decision": "separate",
+      "publicTools": [],
+      "reason": "Fleet owns delegation, durable coordination and ledgers. Install/configure Fleet separately; this package neither loads nor modifies it."
+    },
+    {
+      "id": "task.heartbeat",
+      "decision": "separate",
+      "publicTools": [],
+      "reason": "Fleet owns delegation, durable coordination and ledgers. Install/configure Fleet separately; this package neither loads nor modifies it."
+    },
+    {
+      "id": "task.list",
+      "decision": "separate",
+      "publicTools": [],
+      "reason": "Fleet owns delegation, durable coordination and ledgers. Install/configure Fleet separately; this package neither loads nor modifies it."
+    },
+    {
+      "id": "task.start",
+      "decision": "separate",
+      "publicTools": [],
+      "reason": "Fleet owns delegation, durable coordination and ledgers. Install/configure Fleet separately; this package neither loads nor modifies it."
+    },
+    {
+      "id": "task.submit",
+      "decision": "separate",
+      "publicTools": [],
+      "reason": "Fleet owns delegation, durable coordination and ledgers. Install/configure Fleet separately; this package neither loads nor modifies it."
+    },
+    {
+      "id": "terraform.apply",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "terraform.init",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "terraform.plan",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "terraform.validate",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "tts.speak",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "video.cancel",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "video.download",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "video.generate",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "video.jobs",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "video.models",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "video.status",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "web.expand",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "web.extract",
+      "decision": "replace",
+      "publicTools": [
+        "web.extract"
+      ],
+      "reason": "Portable implementation with bounded public schema; legacy policy/credential/runtime dependencies are not imported."
+    },
+    {
+      "id": "web.fetch",
+      "decision": "replace",
+      "publicTools": [
+        "web.fetch"
+      ],
+      "reason": "Portable implementation with bounded public schema; legacy policy/credential/runtime dependencies are not imported."
+    },
+    {
+      "id": "web.lookup",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "web.search",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "window.close",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "window.focus",
+      "decision": "replace",
+      "publicTools": [
+        "desktop.act"
+      ],
+      "reason": "Optional Windows desktop adapter selected at startup. Same current account/session, observed window IDs, bounded UIA and window capture; pointer input uses a fresh single-use image. A new standalone MCP contract, not legacy host grant/session compatibility. Native Linux desktop remains deferred."
+    },
+    {
+      "id": "window.list",
+      "decision": "replace",
+      "publicTools": [
+        "desktop.inspect"
+      ],
+      "reason": "Optional Windows desktop adapter selected at startup. Same current account/session, observed window IDs, bounded UIA and window capture; pointer input uses a fresh single-use image. A new standalone MCP contract, not legacy host grant/session compatibility. Native Linux desktop remains deferred."
+    },
+    {
+      "id": "workspace.list",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "workspace.read",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "workstation.configure_agent_clients",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "workstation.initialize_cursor_state",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "workstation.install_cursor",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "workstation.launch_cursor",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "workstation.status",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    },
+    {
+      "id": "workstation.sync_cursor_extensions",
+      "decision": "defer",
+      "publicTools": [],
+      "reason": "Potentially useful optional adapter, but needs its own platform/provider/permission contract and tests. It is absent from discovery and dispatch in this release."
+    }
+  ]
+}

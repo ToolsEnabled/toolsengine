@@ -1,0 +1,11 @@
+import { createConnection } from '@playwright/mcp';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
+const upstream = await createConnection({ browser: { isolated: true, launchOptions: { headless: true } }, webmcp: false, capabilities: ['core', 'pdf'] });
+const client = new Client({ name: 'toolsengine-inspect', version: '0.1.0' });
+const [a, b] = InMemoryTransport.createLinkedPair();
+await upstream.connect(b);
+await client.connect(a);
+console.log(JSON.stringify((await client.listTools()).tools.map(t => ({ name: t.name, inputSchema: t.inputSchema, annotations: t.annotations })), null, 2));
+await client.close();
+await upstream.close();
