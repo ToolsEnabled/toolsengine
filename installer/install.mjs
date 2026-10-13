@@ -1646,7 +1646,7 @@ function uninstall(options, log) {
       // it points to is read, counted or printed.
       const look = (folder, prefix) => {
         let names = [];
-        try { names = fs.readdirSync(folder); } catch { unexpected.push(`${prefix || '.'}: unreadable`); return; }
+        try { names = fs.readdirSync(folder); } catch { left.push(`${prefix || '.'}: unreadable`); return; }
         for (const name of names.sort()) {
           const item = path.join(folder, name);
           if (realFolder(item)) look(item, path.join(prefix, name));

@@ -33,7 +33,7 @@
     {
       "name": "workspace.read_file",
       "title": "Read a workspace file",
-      "description": "Read one UTF-8 text file from the workspace, up to 1 MiB, with its SHA-256. Any regular file inside the workspace can be read, hidden files such as .env included, so the content can contain secrets that are stored there. Symlinks, junctions and files with more than one hard link are refused. Paths inside the browser's own folders in the workspace are refused: .toolsengine-runtime, and the profile folder when --profile-dir names one there.",
+      "description": "Read one UTF-8 text file from the workspace, up to 1 MiB, with its SHA-256. Any regular file inside the workspace can be read, hidden files such as .env included, so the content can contain secrets that are stored there. Symlinks, junctions and files with more than one hard link are refused, and so are names that Windows cannot use (a colon or another character that Windows forbids, a trailing dot or space, a device name such as aux). Paths inside the browser's own folders in the workspace are refused: .toolsengine-runtime, and the profile folder when --profile-dir names one there.",
       "inputSchema": {
         "type": "object",
         "required": [
@@ -57,7 +57,7 @@
     {
       "name": "workspace.write_file",
       "title": "Create or replace a workspace file",
-      "description": "Create a new UTF-8 text file in the workspace, or replace the entire content of an existing one. Replacing destroys the previous content (ToolsEngine keeps no copy) and is allowed only when expectedSha256 equals the SHA-256 that workspace.read_file reports for the file as it is now, so read it first. At most 1 MiB; there is no append or partial edit. The folder must already exist. Hidden files can be written; symlinks, junctions and files with more than one hard link are refused. Paths inside the browser's own folders in the workspace are refused: .toolsengine-runtime, and the profile folder when --profile-dir names one there.",
+      "description": "Create a new UTF-8 text file in the workspace, or replace the entire content of an existing one. Replacing destroys the previous content (ToolsEngine keeps no copy) and is allowed only when expectedSha256 equals the SHA-256 that workspace.read_file reports for the file as it is now, so read it first. At most 1 MiB; there is no append or partial edit. The folder must already exist. Hidden files can be written; symlinks, junctions and files with more than one hard link are refused, and so are names that Windows cannot use (a colon or another character that Windows forbids, a trailing dot or space, a device name such as aux). Paths inside the browser's own folders in the workspace are refused: .toolsengine-runtime, and the profile folder when --profile-dir names one there.",
       "inputSchema": {
         "type": "object",
         "required": [
@@ -89,7 +89,7 @@
     {
       "name": "workspace.search",
       "title": "Search workspace files",
-      "description": "Search the workspace's UTF-8 text files for a literal string (not a pattern) and return the matching lines. Folders whose name starts with a dot are skipped; hidden files inside searched folders are not. Symlinks, junctions and multiply-linked files are skipped and counted, and so are the browser's own folders. Bounded to 200 results, 1,000 files, 256 KiB per file and 8 MiB in all.",
+      "description": "Search the workspace's UTF-8 text files for a literal string (not a pattern) and return the matching lines. Folders whose name starts with a dot are skipped; hidden files inside searched folders are not. Symlinks, junctions and multiply-linked files are skipped and counted, and so are the browser's own folders and names that Windows cannot use (a colon or another character that Windows forbids, a trailing dot or space, a device name such as aux). Bounded to 200 results, 1,000 files, 256 KiB per file and 8 MiB in all.",
       "inputSchema": {
         "type": "object",
         "required": [

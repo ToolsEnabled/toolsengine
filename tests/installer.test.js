@@ -822,6 +822,30 @@ test('uninstall: removes what was installed, keeps the workspace and anything el
   assert.equal(installer(['uninstall']).status, 1, 'nothing left to remove');
 });
 
+// A leftover folder that cannot be read made the uninstall stop with
+// "ReferenceError: unexpected is not defined" after it had removed the
+// files, before it named the workspace and the client registrations; a
+// second uninstall then found nothing to remove and never named them.
+test('uninstall names a leftover folder it cannot read, and still lists the workspace and the registrations', { skip: process.platform === 'win32' || process.getuid?.() === 0 ? 'needs a POSIX folder that its owner cannot read' : false }, () => {
+  reset();
+  assert.equal(installer(['--browser', 'none', '--register', 'claude', 'codex']).status, 0);
+  const locked = installed('extra', 'locked');
+  fs.mkdirSync(locked, { recursive: true });
+  fs.chmodSync(locked, 0o000);
+  try {
+    seedClients({});
+    const result = fromInstalled(['uninstall']);
+    assert.doesNotMatch(result.out, /ReferenceError|is not defined/);
+    assert.equal(result.status, 0, result.out);
+    assert.match(result.out, /other item\(s\) that the installer did not put there were left in place/);
+    assert.match(result.out, /extra[\\/]locked: unreadable/);
+    assert.match(result.out, /Not removed: the workspace/);
+    assert.match(result.out, /to remove it: {2}claude(?:\.cmd)? mcp remove toolsengine --scope user/);
+  } finally {
+    fs.chmodSync(locked, 0o700);
+  }
+});
+
 test('uninstall removes nothing through a link, and nothing by a list that was changed after the install', () => {
   // A project of the person's, with files named like those of the install.
   const project = path.join(base, 'a project of mine');

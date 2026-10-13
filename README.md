@@ -354,6 +354,11 @@ destructive, idempotent, open-world). What the descriptions say about effects:
 - `workspace.read_file`, `workspace.list` and `workspace.write_file` treat
   hidden files such as `.env` like any other file in the workspace. Only
   `workspace.search` skips folders whose name starts with a dot.
+- Workspace paths must be usable on Windows as well as on Linux: a name with
+  a colon or one of `* ? " < > |`, a name that ends in a dot or a space, and
+  a Windows device name such as `con`, `aux` or `com1` (also with an
+  extension, as in `aux.c`) are refused by the file tools. `workspace.search`
+  passes such files and folders by and counts them as `nonPortableNames`.
 - `desktop.pointer` moves the person's real mouse cursor, and
   `desktop.capture` returns whatever the window shows, unredacted.
 

@@ -351,3 +351,54 @@ test("the file tools stay out of the browser's own folders in the workspace", as
   const elsewhere = Object.fromEntries(createWorkspaceTools({ workspace, profileDir: path.join(base, "profile-elsewhere") }).map((tool) => [tool.name, tool]));
   assert.equal((await elsewhere["workspace.read_file"].handler({ path: "browser-profile/Default/Preferences" })).content, settings);
 });
+
+// Names that Linux allows and Windows does not (a colon, a trailing dot or
+// space, a device name such as aux) made one such name anywhere in the tree
+// fail the whole search, and the matches already found were lost.
+test("workspace.search passes by names Windows cannot use, counts them, and keeps its matches", { skip: process.platform === "win32" ? "such names cannot be made on Windows" : false }, async (t) => {
+  const { tools, workspace } = await fixture(t);
+  for (const folder of ["notes", "logs", "odd: folder"]) await mkdir(path.join(workspace, folder));
+  await writeFile(path.join(workspace, "notes", "a.txt"), "the needle is here");
+  await writeFile(path.join(workspace, "logs", "server-2026-10-13T10:00:00.log"), "a needle in a log");
+  await writeFile(path.join(workspace, "odd: folder", "b.txt"), "needle");
+  await writeFile(path.join(workspace, "aux.c"), "needle");
+  await writeFile(path.join(workspace, "trailing."), "needle");
+  const found = await tools["workspace.search"].handler({ query: "needle" });
+  assert.deepEqual(found.matches.map((match) => match.path), ["notes/a.txt"]);
+  assert.equal(found.skipped.nonPortableNames, 4);
+  assert.equal((await tools["workspace.search"].handler({ path: "logs", query: "needle" })).skipped.nonPortableNames, 1);
+  assert.equal((await tools["workspace.search"].handler({ path: "notes", query: "needle" })).skipped.nonPortableNames, 0);
+});
+
+// "İ" (U+0130) is one character, and two in lower case: the column of a
+// case-insensitive match after it was off by one for each.
+test("workspace.search reports columns in the line as written when lower case is longer", async (t) => {
+  const { tools, workspace } = await fixture(t);
+  await writeFile(path.join(workspace, "tr.txt"), "İİİİ token\nİstanbul TOKEN and Token");
+  const found = await tools["workspace.search"].handler({ query: "token", caseSensitive: false });
+  assert.deepEqual(found.matches.map(({ line, column }) => [line, column]), [[1, 6], [2, 10], [2, 20]]);
+  assert.equal(found.matches[0].text, "İİİİ token");
+  const exact = await tools["workspace.search"].handler({ query: "TOKEN", caseSensitive: true });
+  assert.deepEqual(exact.matches.map(({ line, column }) => [line, column]), [[2, 10]]);
+});
+
+// The temporary file was named after the target with about 42 bytes added,
+// so names of about 214 to 255 bytes failed with the system's ENAMETOOLONG
+// text and the workspace's absolute path.
+test("workspace.write_file writes a name of 255 bytes, and refuses a longer one without the workspace's path", { skip: process.platform === "win32" ? "Windows limits the whole path instead" : false }, async (t) => {
+  const { tools, workspace } = await fixture(t);
+  const name = `${"n".repeat(251)}.txt`;
+  assert.equal(Buffer.byteLength(name), 255);
+  const written = await tools["workspace.write_file"].handler({ path: name, content: "x" });
+  assert.equal(written.created, true);
+  assert.equal(await readFile(path.join(workspace, name), "utf8"), "x");
+  const tooLong = (error) => {
+    assert.equal(error?.code, "NAME_TOO_LONG");
+    assert.ok(!error.message.includes(workspace), error.message);
+    assert.doesNotMatch(error.message, /ENAMETOOLONG/);
+    return true;
+  };
+  await assert.rejects(tools["workspace.write_file"].handler({ path: `${"n".repeat(300)}.txt`, content: "x" }), tooLong);
+  await assert.rejects(tools["workspace.read_file"].handler({ path: `${"n".repeat(300)}.txt` }), tooLong);
+  assert.deepEqual((await readdir(workspace)).filter((entry) => entry.includes(".toolsengine-")), []);
+});

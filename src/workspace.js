@@ -146,6 +146,15 @@ function isMissing(error) {
   return error?.code === "ENOENT";
 }
 
+// A name longer than the file system allows (255 bytes on most), said with
+// the workspace-relative path instead of the system's ENAMETOOLONG text,
+// which names the workspace's full path.
+function refuseLongName(error, shown) {
+  if (error?.code === "ENAMETOOLONG") {
+    fail("NAME_TOO_LONG", `${shown} has a name that is longer than this file system allows (most allow 255 bytes per name).`);
+  }
+}
+
 async function initializeRoot(workspace) {
   if (typeof workspace !== "string" || workspace.length === 0) {
     fail("INVALID_WORKSPACE", "workspace must be a non-empty path string.");
@@ -250,6 +259,7 @@ async function resolveExisting(root, input, options = {}) {
       info = await lstat(candidate);
     } catch (error) {
       if (isMissing(error)) notFound(segments.join("/"), walked.join("/"), options.missingFolder);
+      refuseLongName(error, walked.join("/"));
       throw error;
     }
     if (info.isSymbolicLink()) {
@@ -314,6 +324,7 @@ async function resolveWriteTarget(root, input, browserFolders) {
   try {
     info = await lstat(candidate);
   } catch (error) {
+    refuseLongName(error, segments.join("/"));
     if (!isMissing(error)) throw error;
   }
   if (info?.isSymbolicLink()) {
@@ -385,10 +396,13 @@ function decodeUtf8(buffer) {
   }
 }
 
-async function writeTemporary(parent, basename, buffer, mode) {
+// The temporary file has a short name of its own in the target's folder. It
+// was named after the target before 0.1.6, which added 42 bytes to the name
+// and made names of about 214 to 255 bytes fail.
+async function writeTemporary(parent, buffer, mode) {
   for (let attempt = 0; attempt < 8; attempt += 1) {
     const suffix = randomBytes(12).toString("hex");
-    const temp = path.join(parent, `.${basename}.toolsengine-${suffix}.tmp`);
+    const temp = path.join(parent, `.toolsengine-${suffix}.tmp`);
     try {
       const handle = await open(temp, "wx", mode);
       try {
@@ -523,7 +537,7 @@ export function createWorkspaceTools({ workspace, profileDir } = {}) {
     name: "workspace.read_file",
     title: "Read a workspace file",
     description:
-      `Read one UTF-8 text file from the workspace, up to 1 MiB, with its SHA-256. Any regular file inside the workspace can be read, hidden files such as .env included, so the content can contain secrets that are stored there. Symlinks, junctions and files with more than one hard link are refused. ${BROWSER_FOLDERS_NOTE}`,
+      `Read one UTF-8 text file from the workspace, up to 1 MiB, with its SHA-256. Any regular file inside the workspace can be read, hidden files such as .env included, so the content can contain secrets that are stored there. Symlinks, junctions and files with more than one hard link are refused, and so are names that Windows cannot use (a colon or another character that Windows forbids, a trailing dot or space, a device name such as aux). ${BROWSER_FOLDERS_NOTE}`,
     inputSchema: {
       type: "object",
       required: ["path"],
@@ -550,7 +564,7 @@ export function createWorkspaceTools({ workspace, profileDir } = {}) {
     name: "workspace.write_file",
     title: "Create or replace a workspace file",
     description:
-      `Create a new UTF-8 text file in the workspace, or replace the entire content of an existing one. Replacing destroys the previous content (ToolsEngine keeps no copy) and is allowed only when expectedSha256 equals the SHA-256 that workspace.read_file reports for the file as it is now, so read it first. At most 1 MiB; there is no append or partial edit. The folder must already exist. Hidden files can be written; symlinks, junctions and files with more than one hard link are refused. ${BROWSER_FOLDERS_NOTE}`,
+      `Create a new UTF-8 text file in the workspace, or replace the entire content of an existing one. Replacing destroys the previous content (ToolsEngine keeps no copy) and is allowed only when expectedSha256 equals the SHA-256 that workspace.read_file reports for the file as it is now, so read it first. At most 1 MiB; there is no append or partial edit. The folder must already exist. Hidden files can be written; symlinks, junctions and files with more than one hard link are refused, and so are names that Windows cannot use (a colon or another character that Windows forbids, a trailing dot or space, a device name such as aux). ${BROWSER_FOLDERS_NOTE}`,
     inputSchema: {
       type: "object",
       required: ["path", "content"],
@@ -606,7 +620,7 @@ export function createWorkspaceTools({ workspace, profileDir } = {}) {
       const mode = initial.info ? initial.info.mode & 0o777 : 0o600;
       let temp;
       try {
-        temp = await writeTemporary(initial.parent, path.basename(initial.candidate), buffer, mode);
+        temp = await writeTemporary(initial.parent, buffer, mode);
         const finalCheck = await resolveWriteTarget(root, args.path, browserFolders);
         if (initial.info) {
           if (!finalCheck.info) {
@@ -650,7 +664,7 @@ export function createWorkspaceTools({ workspace, profileDir } = {}) {
     name: "workspace.search",
     title: "Search workspace files",
     description:
-      "Search the workspace's UTF-8 text files for a literal string (not a pattern) and return the matching lines. Folders whose name starts with a dot are skipped; hidden files inside searched folders are not. Symlinks, junctions and multiply-linked files are skipped and counted, and so are the browser's own folders. Bounded to 200 results, 1,000 files, 256 KiB per file and 8 MiB in all.",
+      "Search the workspace's UTF-8 text files for a literal string (not a pattern) and return the matching lines. Folders whose name starts with a dot are skipped; hidden files inside searched folders are not. Symlinks, junctions and multiply-linked files are skipped and counted, and so are the browser's own folders and names that Windows cannot use (a colon or another character that Windows forbids, a trailing dot or space, a device name such as aux). Bounded to 200 results, 1,000 files, 256 KiB per file and 8 MiB in all.",
     inputSchema: {
       type: "object",
       required: ["query"],
@@ -714,21 +728,36 @@ export function createWorkspaceTools({ workspace, profileDir } = {}) {
         changedEntries: 0,
         hardlinkedFiles: 0,
         nonRegularFiles: 0,
+        nonPortableNames: 0,
       };
       const truncationReasons = new Set();
       let scannedEntries = 0;
       let searchedFiles = 0;
       let searchedBytes = 0;
-      const needle = caseSensitive ? args.query : args.query.toLowerCase();
+      // Case-insensitive matching runs on the line as written, so a column is
+      // a position in that line even where lower case is longer ("İ").
+      const pattern = caseSensitive ? null : new RegExp(args.query.replace(/[\\^$.*+?()[\]{}|/]/g, "\\$&"), "giu");
 
       searchLoop: while (directories.length > 0) {
         const directoryPath = directories.pop();
         const directoryRelative = relativePortable(root, directoryPath);
-        const { candidate: checkedDirectory } = await resolveExisting(root, directoryRelative, {
-          allowRoot: true,
-          type: "directory",
-          browserFolders,
-        });
+        let checkedDirectory;
+        try {
+          ({ candidate: checkedDirectory } = await resolveExisting(root, directoryRelative, {
+            allowRoot: true,
+            type: "directory",
+            browserFolders,
+          }));
+        } catch (error) {
+          // A folder whose name Windows cannot use (a colon, a trailing dot
+          // or space, a device name such as aux) is passed by, not a reason
+          // to lose the whole search.
+          if (error?.code === "INVALID_PATH" && directoryPath !== start) {
+            skipped.nonPortableNames += 1;
+            continue;
+          }
+          throw error;
+        }
         const directory = await opendir(checkedDirectory);
         try {
           for await (const entry of directory) {
@@ -793,6 +822,10 @@ export function createWorkspaceTools({ workspace, profileDir } = {}) {
                 skipped.hardlinkedFiles += 1;
                 continue;
               }
+              if (error?.code === "INVALID_PATH") {
+                skipped.nonPortableNames += 1;
+                continue;
+              }
               throw error;
             }
             let buffer;
@@ -826,22 +859,31 @@ export function createWorkspaceTools({ workspace, profileDir } = {}) {
             const lines = content.split(/\r?\n/);
             for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
               const line = lines[lineIndex];
-              const haystack = caseSensitive ? line : line.toLowerCase();
               let from = 0;
-              while (from <= haystack.length - needle.length) {
-                const index = haystack.indexOf(needle, from);
+              while (from < line.length) {
+                let index;
+                let length;
+                if (caseSensitive) {
+                  index = line.indexOf(args.query, from);
+                  length = args.query.length;
+                } else {
+                  pattern.lastIndex = from;
+                  const found = pattern.exec(line);
+                  index = found ? found.index : -1;
+                  length = found ? found[0].length : 0;
+                }
                 if (index === -1) break;
                 matches.push({
                   path: relativeFile,
                   line: lineIndex + 1,
                   column: index + 1,
-                  text: snippetFor(line, index, args.query.length),
+                  text: snippetFor(line, index, length),
                 });
                 if (matches.length >= maxResults) {
                   truncationReasons.add("result_limit");
                   break searchLoop;
                 }
-                from = index + Math.max(needle.length, 1);
+                from = index + Math.max(length, 1);
               }
             }
           }

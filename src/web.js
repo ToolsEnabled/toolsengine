@@ -578,7 +578,11 @@ function extractHtml(html, { baseUrl, maxTextCharacters, maxLinks }) {
     activeAnchor = null;
   };
 
-  const lowerHtml = html.toLowerCase();
+  // Tag names are ASCII, and only ASCII letters are lower-cased here, so a
+  // position in this copy is the same position in the page. A full
+  // toLowerCase() makes "İ" (U+0130) two characters long and shifted every
+  // position after it: script source came out as text, and text was lost.
+  const lowerHtml = html.replace(/[A-Z]+/g, (letters) => letters.toLowerCase());
   let index = 0;
   while (index < html.length) {
     const tagStart = html.indexOf("<", index);

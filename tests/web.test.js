@@ -290,6 +290,25 @@ test("web.extract produces readable text and safe resolved links without script 
   ]);
 });
 
+// "İ" (U+0130) is one character, and two in lower case. The end of a script
+// or a style was looked for in a lower-cased copy of the page and then used
+// as a position in the page itself, so on a Turkish page script source came
+// out as text and visible text after a style was dropped.
+test("web.extract finds the end of a script or a style on a page that contains İ", async () => {
+  const extract = toolMap()["web.extract"].handler;
+  const menu = await extract({
+    html: '<nav>İLETİŞİM GİRİŞ İLETİŞİM GİRİŞ</nav><script>function gtag(){dataLayer.push(arguments)}</script><p>Hello world</p>',
+  });
+  assert.match(menu.text, /İLETİŞİM GİRİŞ/);
+  assert.match(menu.text, /Hello world/);
+  assert.doesNotMatch(menu.text, /gtag|dataLayer/);
+  const many = await extract({
+    html: `<p>${"İ".repeat(30)}</p><style>p { color: red }</style><p>Hello world</p><p>Second</p><p>Tail text</p>`,
+  });
+  assert.match(many.text, /Hello world\nSecond\nTail text/);
+  assert.doesNotMatch(many.text, /color/);
+});
+
 test("web.extract declares text, link, and HTML bounds", async () => {
   const extract = toolMap()["web.extract"].handler;
   const result = await extract({
