@@ -392,12 +392,31 @@ In the browser that ToolsEngine starts, downloads use unique names such as
 files are preserved. Saved screenshots, PDFs, snapshots, logs and downloads
 are limited to 256 files and 64 MiB in total, 16 MiB per file, including at
 most 32 downloads. Explicit output paths elsewhere in the workspace count
-toward the same limits. Counts persist across server restarts. Delete saved
-artifacts to make room; there is no automatic retention sweep. Output writes
-use a filesystem lock and reload shared accounting. A busy or leftover
-artifact-write.lock refuses output; review whether any writer for that workspace
-is still active before a human removes that runtime lock. Index failure removes
-a newly created completed file, and index growth beyond 64 KiB is refused.
+toward the same limits. Counts persist across server restarts.
+
+The page-snapshot file that most browser calls write by themselves
+(`page-<date and time>.yml` directly in `artifacts/toolsengine`) is kept as
+a rolling set: the newest 64 of them, within 16 MiB, stay, and older ones
+are deleted when a new one is written and when the server starts. Only
+snapshot files that ToolsEngine wrote under that name are deleted; files
+saved under a name given to a tool (`filename`), screenshots, PDFs, logs,
+downloads and files you put there yourself are never deleted. Delete those
+to make room. The snapshot file is written after the click, key press or
+navigation has acted on the page, so it never turns the call into an
+error: when it cannot be saved (the limits are reached with other files, or
+another writer holds the lock), the call's result stands, the link to the
+file is replaced, and one sentence says that the action was carried out and
+only its snapshot file was not saved. `browser.snapshot` returns the page
+inline at any time.
+
+Output writes use a filesystem lock and reload shared accounting. Another
+ToolsEngine writing into the same workspace holds the lock only while it
+writes one file, and a write waits up to 2 seconds for it. A lock that is
+still held after that, `.toolsengine-runtime/artifact-write.lock`, refuses
+output that a tool was asked to save; review whether any ToolsEngine for
+that workspace is still running before a human removes that runtime lock.
+Index failure removes a newly created completed file, and index growth
+beyond 64 KiB is refused.
 
 Excess downloads are refused or cancelled. A refusal is reported in the
 current or next browser result; input already delivered to the page may
@@ -759,9 +778,10 @@ can cause the selected application to transmit data. Installed browsers can
 also contact their makers independently of ToolsEngine.
 
 The installer retains installation records and its printed log beside each
-installed version. Browser snapshots, screenshots, PDFs and downloads remain
-in the workspace, with the limits described above and no automatic retention
-sweep. Dedicated profiles keep sign-ins; temporary profile state is discarded
+installed version. Screenshots, PDFs and downloads remain in the workspace,
+with the limits described above and no automatic retention sweep. Of the
+page snapshots that browser calls write by themselves, the newest 64 remain;
+ToolsEngine deletes the older ones. Dedicated profiles keep sign-ins; temporary profile state is discarded
 when the owned browser closes, which an orderly stop of the server (the
 client closing the connection, SIGTERM) includes. A server that is killed
 outright cannot do that: the browser's temporary profile and artifacts

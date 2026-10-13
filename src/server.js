@@ -133,7 +133,7 @@ export function serverInstructions({ browser, desktop, sandbox = true, desktopAl
     ...(ownBrowser && sandbox === false ? ['This server was started with --no-browser-sandbox, by the person\'s choice: its browser runs without Chromium\'s sandbox, so a page that exploits a fault in the browser can act as the person\'s account. Open only addresses the person asked for or that their task needs.'] : []),
     ...(browser === 'none' ? [] : [
       'Take a browser.snapshot before acting on a page.',
-      `Most browser calls also write a small page-snapshot file under artifacts/toolsengine in the workspace${ownBrowser ? '; downloads use unique names and preserve existing files. A page can start one at any time; saved artifacts are capped at 256 files and 64 MiB, 16 MiB per file, including at most 32 downloads' : ''}.`,
+      `Most browser calls also write a small page-snapshot file under artifacts/toolsengine in the workspace (the newest 64 are kept)${ownBrowser ? '; downloads use unique names and preserve existing files. A page can start one at any time; saved artifacts are capped at 256 files and 64 MiB, 16 MiB per file, including at most 32 downloads' : ''}.`,
       // An attached browser keeps its own way with downloads (ATTACH_OPTIONS in browser.js).
       ...(ownBrowser ? [] : ['A download that a page starts there is left to that browser and is not copied into the workspace.']),
     ]),

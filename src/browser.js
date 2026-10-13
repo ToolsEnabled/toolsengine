@@ -152,6 +152,24 @@ export function publicToolNames(text, offered = BROWSER_TOOLS) {
 
 export const NOTHING_REPORTED = 'Done. The browser reported no page change for this call. Use browser.snapshot or browser.find to check the result.';
 
+// The page snapshot file that the browser library writes after a click, a key
+// or a navigation is written once the call has already acted on the page.
+// When that file could not be saved (artifacts.js skips it), the call's own
+// result stands as the dependency reported it; the link to the missing file
+// is replaced, and one sentence says what was and was not done, so that the
+// action is not repeated for a file that was never part of it.
+export function reportUnsavedSnapshots(result, unsaved) {
+  const names = new Set(unsaved.map(item => item.name));
+  const reasons = [...new Set(unsaved.map(item => item.reason))].join('; ');
+  const content = result.content.map(part => part?.type === 'text' && typeof part.text === 'string'
+    ? { ...part, text: part.text.replace(/^- \[Snapshot\]\(([^)\n]*)\)$/gm, (line, link) => names.has(link.split(/[\\/]/).pop()) ? '- Snapshot file not saved; call browser.snapshot to read the page.' : line) }
+    : part);
+  content.push({ type: 'text', text: result.isError === true
+    ? `The page snapshot file of this call was not saved either: ${reasons}.`
+    : `The action was carried out; only its page snapshot file was not saved: ${reasons}. Do not repeat the action. Call browser.snapshot to see the page as it is now.` });
+  return { ...result, content };
+}
+
 export function checkBrowserUrl(value) {
   if (value === 'about:blank') return value;
   const refusal = 'Browser navigation requires an HTTP(S) URL without embedded credentials.';
@@ -665,11 +683,14 @@ export async function createBrowserBridge(config, options = {}) {
         if (forwarded.filename) { forwarded.filename = await browserFile(workspace, forwarded.filename, { protectedFolders }); budget.addOutput(forwarded.filename); }
         if (forwarded.paths) forwarded.paths = await Promise.all(forwarded.paths.map(p => browserFile(workspace, p, { input: true, protectedFolders })));
         activeSignal = signal;
+        budget.takeUnsavedSnapshots();
         let result;
         try { result = await runBrowserOperation(() => client.callTool({ name, arguments: forwarded }, undefined, { timeout: 60000, signal }), { signal, stop: stopOperation }); }
         finally { activeSignal = undefined; }
         const downloadNotes=budget.takeNotes();
         if(downloadNotes.length)result={...result,isError:true,content:[...(result?.content||[]),{type:'text',text:downloadNotes.join(' ')+' Page input already delivered may have applied; inspect before retrying.'}]};
+        const unsavedSnapshots=budget.takeUnsavedSnapshots();
+        if(unsavedSnapshots.length&&Array.isArray(result?.content))result=reportUnsavedSnapshots(result,unsavedSnapshots);
         if (!Array.isArray(result?.content)) return result;
         // The dependency wraps a failed start in its own headings. A refusal
         // for want of the sandbox is given as it is, and nothing else.

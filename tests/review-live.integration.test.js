@@ -38,3 +38,29 @@ test('P6 live downloads enforce count and per-file bytes without overwriting',{s
  await call('browser.click',{target:'a[href="/file"]'});await bridge.waitForDownloads();
  assert.equal((await fs.readdir(path.join(workspace,'artifacts','toolsengine'))).filter(n=>n.startsWith('download-')).length,1);
 });
+// 0.1.5 reported a click as an error saying "nothing was saved" when only the
+// page snapshot written after it could not be saved: the order was placed,
+// and the answer invited a second click.
+test('P6 live a click whose snapshot file cannot be saved is reported as done, once, not as an error',{skip:serverBrowserSkipped,timeout:120000},async t=>{
+ const site=http.createServer((req,res)=>{res.setHeader('content-type','text/html; charset=utf-8');res.end('<title>Orders</title><button id="order">Place order</button><p id="count">orders: 0</p><script>let n=0;document.getElementById("order").onclick=()=>{document.getElementById("count").textContent="orders: "+(++n);};</script>');});
+ await new Promise(r=>site.listen(0,'127.0.0.1',r));t.after(()=>{site.closeAllConnections();site.close();});
+ const {workspace,call}=await bridgeFor(t,{artifactLimits:{files:1,bytes:65536,fileBytes:65536,downloads:1}});
+ const output=path.join(workspace,'artifacts','toolsengine');
+ // The saved-output quota is full of the person's own file.
+ await fs.writeFile(path.join(output,'mine.txt'),'mine');
+ const opened=await call('browser.navigate',{url:`http://127.0.0.1:${site.address().port}/`});
+ assert.notEqual(opened.isError,true,JSON.stringify(opened));
+ const clicked=await call('browser.click',{target:'#order'});
+ assert.notEqual(clicked.isError,true,JSON.stringify(clicked));
+ assert.match(JSON.stringify(clicked),/The action was carried out/);
+ assert.doesNotMatch(JSON.stringify(clicked),/nothing was saved|\[Snapshot\]\(/);
+ assert.match(JSON.stringify(await call('browser.snapshot')),/orders: 1/);
+ assert.deepEqual(await fs.readdir(output),['mine.txt']);
+ // Another writer's output lock: the click is reported in the same way.
+ await fs.unlink(path.join(output,'mine.txt'));
+ await fs.writeFile(path.join(workspace,'.toolsengine-runtime','artifact-write.lock'),'');
+ const again=await call('browser.click',{target:'#order'});
+ assert.notEqual(again.isError,true,JSON.stringify(again));
+ assert.match(JSON.stringify(again),/artifact-write\.lock/);
+ assert.match(JSON.stringify(await call('browser.snapshot')),/orders: 2/);
+});
