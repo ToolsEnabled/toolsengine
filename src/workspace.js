@@ -237,13 +237,21 @@ async function resolveExisting(root, input, options = {}) {
   await verifyRoot(root);
 
   let candidate = root;
+  const walked = [];
   for (const segment of segments) {
     candidate = path.join(candidate, segment);
+    walked.push(segment);
     if (!isContained(root, candidate)) {
       fail("PATH_OUTSIDE_WORKSPACE", "Resolved path leaves the workspace.");
     }
     await refuseBrowserFolder(candidate, options.browserFolders);
-    const info = await lstat(candidate);
+    let info;
+    try {
+      info = await lstat(candidate);
+    } catch (error) {
+      if (isMissing(error)) notFound(segments.join("/"), walked.join("/"), options.missingFolder);
+      throw error;
+    }
     if (info.isSymbolicLink()) {
       fail("SYMLINK_REJECTED", "Symlinks and junctions are not allowed.");
     }
@@ -273,6 +281,19 @@ async function resolveExisting(root, input, options = {}) {
   return { candidate, info, segments };
 }
 
+// What a path that is not there is called, in the workspace's own words and
+// without the system's error text (which names the workspace's full path).
+function notFound(whole, missing, folderToWriteIn) {
+  const first = missing === whole ? "" : ` (${missing} is missing)`;
+  if (folderToWriteIn) {
+    fail(
+      "FOLDER_NOT_FOUND",
+      `The folder ${whole} does not exist in the workspace${first}. workspace.write_file does not create folders: write the file into a folder that exists (workspace.list shows them), or have the person create this folder first.`,
+    );
+  }
+  fail("NOT_FOUND", `${whole} does not exist in the workspace${first}.`);
+}
+
 async function resolveWriteTarget(root, input, browserFolders) {
   const segments = portableSegments(input);
   const filename = segments.at(-1);
@@ -281,6 +302,7 @@ async function resolveWriteTarget(root, input, browserFolders) {
     allowRoot: true,
     type: "directory",
     browserFolders,
+    missingFolder: true,
   });
   const candidate = path.join(parent, filename);
   if (!isContained(root, candidate)) {

@@ -895,7 +895,10 @@ function printCommand(log, words) {
   if (note) log(`    Note: ${note}`);
 }
 
-function printClientCommands(log, plan, record) {
+// offerRegister: false where the installer's own register command would be
+// refused in the same way (the environment's home is not the person's
+// profile), so it is not suggested.
+function printClientCommands(log, plan, record, { offerRegister = true } = {}) {
   for (const client of CLIENTS) {
     const found = findOnPath(client);
     const shown = found ? path.basename(found) : client;
@@ -904,6 +907,7 @@ function printClientCommands(log, plan, record) {
     log(`  ${CLIENT_TITLES[client]}${found ? '' : ` (the "${client}" command was not found on PATH; install ${CLIENT_TITLES[client]} first)`}:`);
     printCommand(log, [shown, ...commands.add]);
   }
+  if (!offerRegister) return;
   log('');
   log('  Or let the installer run them:');
   log(`    ${displayCommand([nodeWord(), path.join(plan.versionDir, 'install.mjs'), 'register', ...CLIENTS])}`);
@@ -1402,10 +1406,11 @@ async function install(options, log) {
     removeCommand: displayCommand([path.basename(findOnPath(client) || client), ...clientCommands(client, record.serverName, []).remove]) }));
   const other = options.register.length ? otherHome() : null;
   log('Connect a client');
-  if (options.dryRun) printClientCommands(log, plan, record);
+  const offerRegister = !otherHome();
+  if (options.dryRun) printClientCommands(log, plan, record, { offerRegister });
   else if (other && serverUsable) {
     explainOtherHome(log, other);
-    printClientCommands(log, plan, record);
+    printClientCommands(log, plan, record, { offerRegister: false });
     record.registrations = printedOnly();
   } else if (options.register.length && serverUsable) {
     describeConfigVariables(log);
@@ -1420,7 +1425,7 @@ async function install(options, log) {
   } else {
     if (options.register.length) log('  Not registered with any client, because the check above failed. The commands, for when it is fixed:');
     else log('  Not registered with any client (no --register). Run the command for each client you use:');
-    printClientCommands(log, plan, record);
+    printClientCommands(log, plan, record, { offerRegister });
     record.registrations = printedOnly();
   }
   log('');

@@ -56,6 +56,28 @@ test("workspace tools expose the portable handler contract", async (t) => {
   }
 });
 
+test("a missing folder or file is said in plain words, without the system error", async (t) => {
+  const { tools, workspace } = await fixture(t);
+  const plain = (pattern) => (error) => {
+    assert.match(error.message, pattern);
+    assert.doesNotMatch(error.message, /ENOENT|lstat|no such file/);
+    assert.ok(!error.message.includes(workspace), error.message);
+    return true;
+  };
+  await assert.rejects(tools["workspace.write_file"].handler({ path: "notes/a.txt", content: "x" }),
+    plain(/^The folder notes does not exist in the workspace\. workspace\.write_file does not create folders/));
+  await assert.rejects(tools["workspace.write_file"].handler({ path: "notes/deeper/a.txt", content: "x" }),
+    plain(/^The folder notes\/deeper does not exist in the workspace/));
+  await assert.rejects(tools["workspace.read_file"].handler({ path: "missing.txt" }),
+    plain(/^missing\.txt does not exist in the workspace\./));
+  await assert.rejects(tools["workspace.list"].handler({ path: "nowhere" }),
+    plain(/^nowhere does not exist in the workspace\./));
+  // Once the folder exists the same call works.
+  await mkdir(path.join(workspace, "notes"));
+  await tools["workspace.write_file"].handler({ path: "notes/a.txt", content: "x" });
+  assert.equal(await readFile(path.join(workspace, "notes", "a.txt"), "utf8"), "x");
+});
+
 test("workspace paths reject traversal and absolute forms", async (t) => {
   const { base, tools, workspace } = await fixture(t);
   await writeFile(path.join(base, "outside.txt"), "outside");

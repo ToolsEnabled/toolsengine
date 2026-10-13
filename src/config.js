@@ -147,7 +147,11 @@ export async function parseConfig(args, { env = process.env } = {}) {
   if (config.browserExecutable && config.browserChannel) throw new Error('Choose only one of --browser-executable or --browser-channel.');
   if (config.browser) refuseRemoteGrid(env);
   if (!config.workspace || !path.isAbsolute(config.workspace)) throw new Error('--workspace must name an existing absolute directory.');
-  config.workspace = await plainDirectory(config.workspace);
+  try { config.workspace = await plainDirectory(config.workspace); }
+  catch (error) {
+    if (error?.code !== 'ENOENT') throw error;
+    throw new Error(`--workspace must name an existing absolute directory. ${path.resolve(config.workspace)} does not exist: create the folder first, or name one that exists.`);
+  }
   if (await foldersOverlap(config.workspace, await fs.realpath(PROGRAM_FOLDER)))
     throw new Error('--workspace and the ToolsEngine program folder must not contain one another: the assistant can write anywhere in the workspace, and must not be able to change the program. Choose a workspace folder outside it.');
   if (config.desktopLeftHalf && !config.desktopProfileRoot) throw new Error('--desktop-left-half requires --desktop-profile-root.');

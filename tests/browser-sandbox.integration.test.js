@@ -22,7 +22,7 @@ import { fileURLToPath } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import * as browserModule from '../src/browser.js';
-import { parseConfig } from '../src/config.js';
+import { parseConfig, channelExecutable } from '../src/config.js';
 
 const windows = process.platform === 'win32';
 const firstExisting = files => files.find(file => file && existsSync(file));
@@ -36,12 +36,17 @@ test('the sandbox is on in the options the browser is started with, unless it wa
   const { browserLaunchOptions } = browserModule;
   assert.equal(typeof browserLaunchOptions, 'function', 'src/browser.js must build the launch options in one place');
   assert.deepEqual(browserLaunchOptions({ headless: true }), { headless: true, chromiumSandbox: true });
-  assert.deepEqual(browserLaunchOptions({ headless: false, browserChannel: 'chrome' }), { headless: false, chromiumSandbox: true, executablePath: (await import('../src/config.js')).channelExecutable('chrome') });
   assert.deepEqual(browserLaunchOptions({ browserExecutable: '/opt/x/browser', browserSandbox: true }), { headless: true, chromiumSandbox: true, executablePath: '/opt/x/browser' });
   assert.equal(browserLaunchOptions({ browserSandbox: false }).chromiumSandbox, false);
   // Nothing but the exact value false switches it off.
   for (const value of [undefined, null, 0, '', 'false', 'off']) assert.equal(browserLaunchOptions({ browserSandbox: value }).chromiumSandbox, true, String(value));
 });
+
+const chromePath = (() => { try { return channelExecutable('chrome'); } catch { return null; } })();
+test('--browser-channel chrome starts the installed Google Chrome from its own path, with the sandbox on',
+  { skip: chromePath ? false : `${'needs an installed Google Chrome'}: none was found where ToolsEngine looks for it` }, () => {
+    assert.deepEqual(browserModule.browserLaunchOptions({ headless: false, browserChannel: 'chrome' }), { headless: false, chromiumSandbox: true, executablePath: chromePath });
+  });
 
 test('only --no-browser-sandbox switches the sandbox off, and only for a browser the server starts itself', async t => {
   const workspace = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'toolsengine-sandbox-config-')));

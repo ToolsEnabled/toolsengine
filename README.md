@@ -1,8 +1,8 @@
 # ToolsEngine portable MCP
 
 A separate local MCP server for browser automation, workspace files and public
-web reading on Windows and Linux. Version 0.1.4 is a patch release of 0.1.3,
-the first public release; what changed in each is listed at the end. It offers 27 core tools; attached-browser modes offer 26.
+web reading on Windows and Linux. Version 0.1.5 is a patch release of 0.1.4
+(0.1.3 was the first public release); what changed in each is listed at the end. It offers 27 core tools; attached-browser modes offer 26.
 An explicit Windows desktop option adds four tools for existing signed-in apps.
 
 ## Install
@@ -97,7 +97,7 @@ npm install -g ./toolsenabled-toolsengine-VERSION.tgz
 toolsengine --version
 ```
 
-`toolsengine --version` prints `ToolsEngine 0.1.4`. Start the server with an
+`toolsengine --version` prints `ToolsEngine 0.1.5`. Start the server with an
 existing absolute folder as the workspace and the installed browser by name:
 
 ```
@@ -113,6 +113,15 @@ server waits for MCP input; a client starts it with the same line:
 claude mcp add --scope user toolsengine -- toolsengine --workspace ABSOLUTE_DIRECTORY --browser-channel chrome
 codex mcp add toolsengine -- toolsengine --workspace ABSOLUTE_DIRECTORY --browser-channel chrome
 ```
+
+With no Chrome and no Edge on the machine, put `--no-browser` in place of
+`--browser-channel chrome` in these lines (or `--browser-executable` with the
+full path of another Chromium-based browser). The server does not start with
+a browser it cannot find: it writes "The selected browser was not found..."
+to its error output and exits, and Claude Code then shows only "Failed to
+connect" for it in `claude mcp list`. With `--no-browser` it connects with
+its 8 tools that need no browser. This route has no installer to look for
+a browser; the release archives' installer does (see "The browser" below).
 
 The release archives, the package file and their SHA-256 sums are on the
 project's releases page, <https://github.com/ToolsEnabled/toolsengine/releases>.
@@ -797,6 +806,13 @@ the decision taken for each of the 261 tools of the public ToolsEnabled
 engine. In the source repository that record is kept beside the package, and
 the copy in the package tree is checked against it.
 
+npm writes each file's permissions into the package as the checkout has
+them, and the audit refuses a file that other accounts could not read after
+a normal installation. Run it in a checkout made with the usual umask 022.
+A checkout made under umask 077 fails it with "File not readable after
+normal shared installation"; `chmod -R a+rX .` in the checkout, or a new
+clone after `umask 022`, fixes that.
+
 The browser suite uses its own headless browser and local fixture pages. It
 checks navigation, form entry, inline snapshots, screenshot/PDF files,
 close/reopen, and preservation of tabs when detaching from a CDP fixture.
@@ -805,7 +821,10 @@ Playwright downloads. Where that browser cannot run, a plain `npm test` still
 passes: the tests that open a page are skipped, and each skip says why and
 what to set. That is the case on a Linux system where Playwright's Chromium
 cannot set its sandbox up (Ubuntu 23.10 and later), and on a machine that
-does not have the pinned Chromium build. To run them there:
+does not have the pinned Chromium build. Tests that need an installed Google
+Chrome or Microsoft Edge are skipped in the same way where there is none
+("needs an installed Google Chrome", "needs an installed Chrome or Edge").
+To run them there:
 
 ```sh
 TOOLSENGINE_TEST_BROWSER=/opt/google/chrome/chrome npm test    # an installed Chrome or Edge, sandbox on
@@ -860,6 +879,40 @@ lifecycle and browser tests; upstream tools never become public automatically.
 ## Responsive layout checks (new in 0.1.3)
 
 `browser.resize` sets the selected tab viewport, using integer CSS pixels: width 320–3840 and height 240–2160. For a narrow layout, use `{"width":390,"height":844}`; then inspect a fresh snapshot or screenshot. It preserves the page and other tabs. The selected tab in an explicitly attached browser is affected too. This is responsive viewport sizing, not phone, touch, user-agent or operating-system window emulation. No new browser connection, profile, arbitrary script, or credential access is added.
+
+## Changes in 0.1.5 (2026-10-13)
+
+A patch release of 0.1.4, from what a second new-user check of 0.1.4 found.
+The server offers the same 27 tools.
+
+- `npm test` passes on a machine without Google Chrome and Microsoft Edge,
+  as this README says it does. The tests that need an installed Chrome
+  (four tests of the extension relay and one of the browser start options)
+  are skipped there with the reason "needs an installed Google Chrome";
+  before, one failed and four ran into their time limit.
+- `workspace.write_file` into a folder that does not exist says so in plain
+  words ("The folder notes does not exist in the workspace.
+  workspace.write_file does not create folders: ...") instead of the
+  system's `ENOENT ... lstat` error with the workspace's full path. Reading
+  or listing a path that does not exist says "... does not exist in the
+  workspace." in the same way.
+- A `--workspace` that names an absolute folder that does not exist is
+  refused with "--workspace must name an existing absolute directory. PATH
+  does not exist: create the folder first, or name one that exists." instead
+  of the system's `ENOENT` error.
+- The README's npm section says to use `--no-browser` where Chrome and Edge
+  are absent: without it the server exits at startup and Claude Code shows
+  only "Failed to connect".
+- When the installer does not run the clients because the terminal's home
+  folder is not your own profile, it no longer suggests its own `register`
+  command, which is refused for the same reason. It prints the clients'
+  commands only.
+- The README says that `npm run audit:package` needs a checkout that others
+  can read (umask 022), and how to fix one made under umask 077.
+- `browser.snapshot` and `browser.find` say in their descriptions why they
+  are not marked read-only although they do not change the page: with
+  `filename` they add a new file to the workspace, and their first call
+  starts the browser or connects to it.
 
 ## Changes in 0.1.4 (2026-10-13)
 

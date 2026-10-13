@@ -98,6 +98,23 @@ test('a server that offers browser tools does not start with SELENIUM_REMOTE_URL
 // The assistant can write anywhere in the workspace. A workspace that holds
 // the program folder would let workspace.write_file rewrite the server's own
 // code and the Windows helper, and so would a workspace inside that folder.
+test('a --workspace that does not exist is refused in plain words, not with the system error', async t => {
+  const base = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'toolsengine-config-')));
+  t.after(() => fs.rm(base, { recursive: true, force: true }));
+  const missing = path.join(base, 'nope', 'deeper');
+  await assert.rejects(parseConfig(['--workspace', missing, '--no-browser']), error => {
+    assert.match(error.message, /^--workspace must name an existing absolute directory\./);
+    assert.ok(error.message.includes(missing), error.message);
+    assert.doesNotMatch(error.message, /ENOENT|lstat/);
+    return true;
+  });
+  const program = fileURLToPath(new URL('../bin/toolsengine.js', import.meta.url));
+  const started = spawnSync(process.execPath, [program, '--workspace', missing, '--no-browser'], { encoding: 'utf8', timeout: 30000 });
+  assert.equal(started.status, 1);
+  assert.match(started.stderr, /^ToolsEngine: --workspace must name an existing absolute directory\./);
+  assert.doesNotMatch(started.stderr, /ENOENT|lstat/);
+});
+
 test('the workspace and the program folder may not contain one another', async t => {
   const { PROGRAM_FOLDER, foldersOverlap } = configModule;
   assert.equal(typeof foldersOverlap, 'function', 'src/config.js must refuse a workspace that overlaps the program folder');

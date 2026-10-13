@@ -45,6 +45,7 @@ export const KNOWN_BROWSER_SKIPS = Object.freeze([
   'TOOLSENGINE_TEST_BROWSER names another browser',
   'needs an installed Chrome or Edge, or TOOLSENGINE_TEST_CHANNEL',
   'needs an installed Chrome or Edge on Linux, or TOOLSENGINE_TEST_CHANNEL',
+  'needs an installed Google Chrome',
   'no short directories on Windows',
 ]);
 // Skipped tests of the browser test files whose reason is none of the known

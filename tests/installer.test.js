@@ -447,6 +447,8 @@ test('install: versioned folder, checked copy, new workspace, start-up check, pr
   assert.match(result.out, /3 tools offered \(3 expected\)/);
   assert.match(result.out, /Network connections opened by the installer: none\./);
   assert.match(result.out, /Not registered with any client \(no --register\)/);
+  // With the person's own home the installer can run the clients itself, and says so.
+  assert.match(result.out, /Or let the installer run them:/);
   const saved = record();
   assert.deepEqual(saved.serverArgs, ['--workspace', path.join(home, 'ToolsEngine', 'workspace'), '--no-browser']);
   assert.equal(saved.entry, installed('app', 'bin', 'toolsengine.js'));
@@ -971,6 +973,8 @@ test('clients are not run when the home in the environment is not the person\'s 
   assert.ok(result.out.includes(displayCommand([path.basename(findOnPath('claude', { env: environment })), ...clientCommands('claude', 'toolsengine', server).add])), result.out);
   assert.ok(result.out.includes(displayCommand([path.basename(findOnPath('codex', { env: environment })), ...clientCommands('codex', 'toolsengine', server).add])), result.out);
   assert.deepEqual(saved.registrations.map(item => item.status), ['printed', 'printed']);
+  // Its register command would be refused in the same way, so it is not suggested.
+  assert.doesNotMatch(result.out, /let the installer run them|install\.mjs'? register/, result.out);
 
   // The same for the register command of the installed copy.
   result = fromInstalled(['register', 'all', '--replace'], carried);
@@ -991,6 +995,12 @@ test('clients are not run when the home in the environment is not the person\'s 
   assert.deepEqual(clientState().calls, []);
   assert.ok(fs.existsSync(path.join(otherHome, 'ToolsEngine', VERSION, 'installation.json')), 'it is installed where --home says');
   fs.rmSync(path.join(otherHome, 'ToolsEngine'), { recursive: true, force: true });
+  // Nor without --register, where the printed commands are all there is.
+  reset();
+  result = installer(['--browser', 'none', '--dry-run'], carried);
+  assert.equal(result.status, 0, result.out);
+  assert.match(result.out, /claude(?:\.cmd)? mcp add --scope user toolsengine/, result.out);
+  assert.doesNotMatch(result.out, /let the installer run them/, result.out);
 
   // With the person's own home in the environment they run.
   reset();

@@ -39,6 +39,12 @@ test('descriptions and hints state the effects a reviewer checks first', async t
   // Nothing in the workspace family reaches outside it.
   for (const tool of tools.filter(tool => /^(workspace|system|capability)\./.test(tool.name))) assert.equal(tool.annotations.openWorldHint, false, tool.name);
   assert.equal(hint('workspace.write_file', 'idempotentHint'), false);
+  // The two browser tools that only read the page are still not read-only, and say why.
+  for (const name of ['browser.snapshot', 'browser.find']) {
+    const tool = tools.find(item => item.name === name);
+    assert.equal(tool.annotations.readOnlyHint, false, name);
+    assert.match(tool.description, /Not marked read-only: with filename it adds a new file to the workspace, and its first call starts the browser or connects to it\./, name);
+  }
 });
 
 // The dependency's screenshot schema requires scale and gives it a default;

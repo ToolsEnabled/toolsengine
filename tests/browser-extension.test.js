@@ -8,10 +8,17 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { chromium } from 'playwright';
-import { parseConfig, configureBrowserEnvironment } from '../src/config.js';
+import { parseConfig, configureBrowserEnvironment, channelExecutable } from '../src/config.js';
 import { createBrowserBridge, EXTENSION_WAITING } from '../src/browser.js';
 import { browserCapabilityStatus, serverInstructions } from '../src/server.js';
 import { ownBrowserSkipped } from './support/browser-under-test.js';
+
+// The real extension relay (pendingRelay below) looks for the installed Google
+// Chrome before it opens its connect page, although the fixture stops the
+// browser from starting. Without Chrome these tests could only time out.
+const chromeInstalled = (() => { try { return Boolean(channelExecutable('chrome')); } catch { return false; } })();
+const relaySkipped = chromeInstalled ? false
+  : `${'needs an installed Google Chrome'}: none was found where ToolsEngine looks for it, and the extension relay looks it up before it opens its connect page (nothing is started)`;
 
 async function workspace(t) {
   const folder = await fs.mkdtemp(path.join(os.tmpdir(), 'toolsengine-extension-'));
@@ -262,7 +269,7 @@ async function relayPortIsClosed(url) {
   });
 }
 
-test('the real relay is revoked after a waiting response and late approval cannot connect', { timeout: 10000 }, async t => {
+test('the real relay is revoked after a waiting response and late approval cannot connect', { skip: relaySkipped, timeout: 10000 }, async t => {
   const { bridge, started, dir } = await pendingRelay(t);
   const call = bridge.tools.find(tool => tool.name === 'browser.snapshot').handler({});
   const page = await started;
@@ -278,7 +285,7 @@ test('the real relay is revoked after a waiting response and late approval canno
   assert.deepEqual((await fs.readdir(path.join(dir, '.toolsengine-runtime'))).filter(name => name.startsWith('extension-registry-')), []);
 });
 
-test('engine shutdown cancels an active real relay wait without waiting for approval', { timeout: 10000 }, async t => {
+test('engine shutdown cancels an active real relay wait without waiting for approval', { skip: relaySkipped, timeout: 10000 }, async t => {
   const { createToolsEngine } = await import('../src/server.js');
   const { bridge, started, dir } = await pendingRelay(t, 60000);
   const engine = await createToolsEngine({ workspace: dir, browserExtension: true }, { makeBrowserBridge: async () => bridge });
@@ -292,7 +299,7 @@ test('engine shutdown cancels an active real relay wait without waiting for appr
   await relayPortIsClosed(page.url);
 });
 
-test('client cancellation closes the real relay and the next browser call opens a fresh approval page', { timeout: 10000 }, async t => {
+test('client cancellation closes the real relay and the next browser call opens a fresh approval page', { skip: relaySkipped, timeout: 10000 }, async t => {
   const { bridge, started, nextConnection } = await pendingRelay(t, 60000);
   const snapshot = bridge.tools.find(tool => tool.name === 'browser.snapshot');
   const controller = new AbortController();
@@ -360,7 +367,7 @@ test('README and status name the actual automatic extension profile selection', 
   assert.equal(browserCapabilityStatus({ browserExtension: true }, true).browserProfileSelection, 'last-used-installed-else-default-or-lowest-numbered');
 });
 
-test('worker shutdown lets the bridge disconnect and finish cleanup before terminating', { timeout: 10000 }, async t => {
+test('worker shutdown lets the bridge disconnect and finish cleanup before terminating', { skip: relaySkipped, timeout: 10000 }, async t => {
   const { bridge, started, worker } = await pendingRelay(t);
   let cleaned = false;
   worker().on('message', message => { if (message.type === 'stopped') cleaned = true; });
