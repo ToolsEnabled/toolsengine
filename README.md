@@ -118,8 +118,10 @@ With no Chrome and no Edge on the machine, put `--no-browser` in place of
 `--browser-channel chrome` in these lines (or `--browser-executable` with the
 full path of another Chromium-based browser). The server does not start with
 a browser it cannot find: it writes "The selected browser was not found..."
-to its error output and exits, and Claude Code then shows only "Failed to
-connect" for it in `claude mcp list`. With `--no-browser` it connects with
+(for a channel) or "--browser-executable names PATH, which does not exist."
+(for a path) to its error output and exits, and Claude Code then shows only
+"Failed to connect" for it in `claude mcp list`; the message itself is in the
+client's MCP log. With `--no-browser` it connects with
 its 8 tools that need no browser. This route has no installer to look for
 a browser; the release archives' installer does (see "The browser" below).
 
@@ -351,6 +353,13 @@ destructive, idempotent, open-world). What the descriptions say about effects:
   which can send them to its site.
 - `workspace.write_file` replaces the entire content of an existing file and
   keeps no copy; it is marked destructive.
+- `workspace.write_file` does not create folders: the folder in the path must
+  already exist, or the call is refused and says so. That is the safe side.
+  A tool that created folders would turn a mistyped or invented path into a
+  tree of new folders in your workspace, and nothing could tell such a tree
+  from one you meant; a write that lands only in a folder you made stays a
+  bounded, single-file action. `workspace.list` shows the folders that
+  exist; make a new one yourself.
 - `workspace.read_file`, `workspace.list` and `workspace.write_file` treat
   hidden files such as `.env` like any other file in the workspace. Only
   `workspace.search` skips folders whose name starts with a dot.

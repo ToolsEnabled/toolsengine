@@ -22,9 +22,36 @@ test('explicit workspace and bounded known configuration', async t => {
   await assert.rejects(parseConfig(['--workspace', workspace, '--no-browser', '--profile-dir', workspace]), /cannot be combined/);
   // The browser to start is named one way or the other, never both: with
   // both, the channel's executable won and the named file was ignored.
-  assert.equal((await parseConfig(['--workspace', workspace, '--browser-executable', '/opt/x/browser'])).browserExecutable, '/opt/x/browser');
+  assert.equal((await parseConfig(['--workspace', workspace, '--browser-executable', process.execPath])).browserExecutable, process.execPath);
   assert.equal((await parseConfig(['--workspace', workspace, '--browser-channel', 'chrome'])).browserChannel, 'chrome');
   await assert.rejects(parseConfig(['--workspace', workspace, '--browser-executable', '/opt/x/browser', '--browser-channel', 'chrome']), /^Error: Choose only one of --browser-executable or --browser-channel\.$/);
+});
+
+// A --browser-executable that does not exist used to be accepted: the server
+// started, the client showed it as connected with every browser tool, and the
+// first browser call failed with the dependency's own text. It is refused at
+// startup now, as a missing channel browser is, with the path and the ways out.
+test('a --browser-executable that does not exist, or is not a file, is refused at startup naming the path', async t => {
+  const workspace = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'toolsengine-config-')));
+  t.after(() => fs.rm(workspace, { recursive: true, force: true }));
+  const missing = path.join(workspace, 'nonexistent', 'chrome');
+  await assert.rejects(parseConfig(['--workspace', workspace, '--browser-executable', missing]),
+    error => { assert.match(error.message, /^--browser-executable names .*nonexistent.*chrome, which does not exist\. Give the full path of the browser program, or name an installed Google Chrome or Microsoft Edge with --browser-channel chrome or --browser-channel msedge\./); assert.ok(error.message.includes(missing)); assert.match(error.message, /claude mcp add, codex mcp add/); return true; });
+  await assert.rejects(parseConfig(['--workspace', workspace, '--browser-executable', workspace]), /^Error: --browser-executable names .* which is not a file\./);
+  await assert.rejects(parseConfig(['--workspace', workspace, '--browser-executable', 'chrome']), /^Error: --browser-executable must be an absolute path; chrome is not\./);
+  // A file that exists passes, as before; the earlier refusals keep their precedence.
+  assert.equal((await parseConfig(['--workspace', workspace, '--browser-executable', process.execPath])).browserExecutable, process.execPath);
+  await assert.rejects(parseConfig(['--workspace', workspace, '--browser-executable', missing, '--browser-channel', 'chrome']), /^Error: Choose only one of/);
+  // The whole program: it does not start, says so on its error output with the
+  // path, offers no tools on its output and exits 1, so that the client shows
+  // "Failed to connect" instead of a connected server.
+  const entry = fileURLToPath(new URL('../bin/toolsengine.js', import.meta.url));
+  const started = spawnSync(process.execPath, [entry, '--workspace', workspace, '--browser-executable', missing], { encoding: 'utf8', timeout: 30000, input: '' });
+  assert.equal(started.status, 1, started.stderr);
+  assert.equal(started.stdout, '');
+  assert.match(started.stderr, /^ToolsEngine: --browser-executable names .* which does not exist\./);
+  assert.ok(started.stderr.includes(missing), started.stderr);
+  assert.doesNotMatch(started.stderr, /browserType\.launch|Failed to launch/);
 });
 
 // A browser attached with --cdp-endpoint is already running: the options that

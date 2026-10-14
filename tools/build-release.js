@@ -176,7 +176,7 @@ function launcher(target) {
   ].join('\r\n');
 }
 
-function installText(target, release) {
+export function installText(target, release) {
   const windows = target.system === 'Windows';
   const run = windows ? 'install.cmd' : './install.sh';
   const home = windows ? 'C:\\Users\\YOU\\ToolsEngine' : '~/ToolsEngine';
@@ -205,6 +205,8 @@ function installText(target, release) {
     `      ${home}${sep}workspace`,
     '  starts the installed server once to check it, and prints the command that',
     '  connects it to Claude Code and the one for Codex.',
+    `  (${windows ? 'C:\\Users\\YOU' : '~'} is your account's own profile as the system records it, even when`,
+    `  ${windows ? 'USERPROFILE' : 'HOME'} points elsewhere; --home DIR installs under DIR instead.)`,
     '',
     '  To have the installer connect the clients for you:',
     '',
@@ -212,10 +214,17 @@ function installText(target, release) {
     '',
     '  (name one or both; each client must already be installed).',
     '',
+    `  The installer runs a client only when ${windows ? 'USERPROFILE' : 'HOME'} is your account's own profile and`,
+    '  CLAUDE_CONFIG_DIR / CODEX_HOME, if set, point inside it. Otherwise it prints the',
+    '  two commands for you to run in a terminal of your own, and with --register it',
+    '  ends with exit code 2 because the registration was not done. --home DIR changes',
+    '  where ToolsEngine is installed and plays no part in this.',
+    '',
     'OPTIONS',
     '',
     '  --workspace DIR      another folder for the assistant to work in',
     '  --browser CHOICE     chrome, msedge, none, or the full path of a browser',
+    '  --home DIR           install under DIR instead of your profile (DIR' + sep + 'ToolsEngine)',
     '  --headed             let the browser open in a window you can see',
     ...(windows ? ['  --desktop            turn on the Windows desktop tools (off by default)'] : []),
     '  --replace            with --register: replace an existing "toolsengine" registration',

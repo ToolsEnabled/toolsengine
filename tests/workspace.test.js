@@ -64,6 +64,8 @@ test("a missing folder or file is said in plain words, without the system error"
     assert.ok(!error.message.includes(workspace), error.message);
     return true;
   };
+  // The description says so before the call is made, and why.
+  assert.match(tools["workspace.write_file"].description, /The folder must already exist: workspace\.write_file does not create folders, so that a mistyped or invented path cannot grow a tree of folders/);
   await assert.rejects(tools["workspace.write_file"].handler({ path: "notes/a.txt", content: "x" }),
     plain(/^The folder notes does not exist in the workspace\. workspace\.write_file does not create folders/));
   await assert.rejects(tools["workspace.write_file"].handler({ path: "notes/deeper/a.txt", content: "x" }),

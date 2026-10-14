@@ -173,6 +173,11 @@ export async function parseConfig(args, { env = process.env } = {}) {
       throw new Error('--cdp-endpoint attaches to a browser that is already running: --browser-executable, --browser-channel and --headed have no effect on it.');
     checkCdpEndpoint(config.cdpEndpoint);
   }
+  // The browser named by its path is looked for here, at startup, as the one
+  // named by its channel is: a wrong path used to be accepted, the client
+  // showed the server as connected with all its tools, and the mistake came
+  // out on the first browser call as the dependency's own text.
+  if (config.browserExecutable) config.browserExecutable = await browserExecutableFile(config.browserExecutable);
   if (config.profileDir) {
     if (!path.isAbsolute(config.profileDir)) throw new Error('--profile-dir must be absolute. Use a dedicated ToolsEngine profile, not an ordinary browser profile.');
     // Checked on the path as given before anything is created, so that a
@@ -219,6 +224,23 @@ export function configureBrowserEnvironment({ env = process.env, platform = proc
     env.LOCALAPPDATA = p.join(profile,'AppData','Local'); env.PROGRAMFILES = 'C:\\Program Files'; env['PROGRAMFILES(X86)'] = 'C:\\Program Files (x86)'; env.HOMEDRIVE = 'C:';
   }
 }
+// The program that --browser-executable names: an absolute path to a file
+// that exists. The message names the path as given, and the ways out: the
+// path corrected where the server is registered, or an installed Chrome or
+// Edge by its channel.
+export async function browserExecutableFile(given, { stat = fs.stat } = {}) {
+  const ways = 'Give the full path of the browser program, or name an installed Google Chrome or Microsoft Edge with --browser-channel chrome or --browser-channel msedge. If the path came from a client registration (claude mcp add, codex mcp add), correct it there.';
+  if (!path.isAbsolute(given)) throw new Error(`--browser-executable must be an absolute path; ${given} is not. ${ways}`);
+  let found;
+  try { found = await stat(given); }
+  catch (error) {
+    if (error?.code === 'ENOENT' || error?.code === 'ENOTDIR') throw new Error(`--browser-executable names ${given}, which does not exist. ${ways}`);
+    throw new Error(`--browser-executable names ${given}, which could not be read (${error?.code || error?.message || error}). ${ways}`);
+  }
+  if (!found.isFile()) throw new Error(`--browser-executable names ${given}, which is not a file. ${ways}`);
+  return given;
+}
+
 export function channelExecutable(channel, { platform = process.platform, profile = userInfo().homedir, exists = existsSync } = {}) {
   if (!['chrome','msedge'].includes(channel)) throw new Error('Use --browser-executable for browser channels other than chrome or msedge.');
   const name = channel === 'chrome' ? 'Google/Chrome/Application/chrome.exe' : 'Microsoft/Edge/Application/msedge.exe';

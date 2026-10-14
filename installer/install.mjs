@@ -53,7 +53,8 @@ Options for install
                          each client's own command. Without it the commands are printed.
                          They are also only printed when the environment names a home
                          folder that is not your own profile, or points a client at a
-                         configuration folder outside it (CLAUDE_CONFIG_DIR, CODEX_HOME).
+                         configuration folder outside it (CLAUDE_CONFIG_DIR, CODEX_HOME);
+                         the installer then ends with exit code 2.
   --replace              With --register: replace a server of the same name that is
                          already registered. Without it an existing one is left alone.
   --workspace DIR        Folder the assistant may read and write.
@@ -1120,8 +1121,10 @@ function explainOtherHome(log, other) {
   log('  as the home folder, and your own profile is');
   log(`    ${other.own}`);
   log('  Claude Code and Codex keep their configuration under the home folder, so they would have');
-  log('  changed the configuration in the first one. In a terminal of your own, run the command for');
-  log('  each client you use:');
+  log('  changed the configuration in the first one. The install itself is complete; because the');
+  log('  registration that was asked for was not done, the installer ends with exit code 2.');
+  log('  (--home DIR chooses where ToolsEngine is installed and plays no part in this.)');
+  log('  In a terminal of your own, run the command for each client you use:');
 }
 
 // Each client can be pointed at another configuration folder by a variable of

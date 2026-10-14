@@ -991,6 +991,10 @@ test('clients are not run when the home in the environment is not the person\'s 
   assert.deepEqual(clientState().calls, [], 'no client may run with another account\'s home');
   assert.match(result.out, /were not run/);
   assert.ok(result.out.includes(otherHome) && result.out.includes(home), 'both folders are named');
+  // The person sees why the installer ends with 2 although the install is
+  // complete, and that --home would not change it.
+  assert.match(result.out, /The install itself is complete; because the\n\s+registration that was asked for was not done, the installer ends with exit code 2\./);
+  assert.match(result.out, /--home DIR chooses where ToolsEngine is installed and plays no part in this/);
   const saved = record();
   const server = [saved.node, saved.entry, ...saved.serverArgs];
   // The commands are printed instead, for a terminal of the person's own.
