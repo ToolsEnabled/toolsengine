@@ -1,7 +1,7 @@
 # ToolsEngine portable MCP
 
 A separate local MCP server for browser automation, workspace files and public
-web reading on Windows and Linux. Version 0.1.6 is a patch release of 0.1.5
+web reading on Windows and Linux. Version 0.1.7 is a patch release of 0.1.6
 (0.1.3 was the first public release); what changed in each is listed at the end. It offers 27 core tools; attached-browser modes offer 26.
 An explicit Windows desktop option adds four tools for existing signed-in apps.
 
@@ -97,7 +97,7 @@ npm install -g ./toolsenabled-toolsengine-VERSION.tgz
 toolsengine --version
 ```
 
-`toolsengine --version` prints `ToolsEngine 0.1.6`. Start the server with an
+`toolsengine --version` prints `ToolsEngine 0.1.7`. Start the server with an
 existing absolute folder as the workspace and the installed browser by name:
 
 ```
@@ -913,6 +913,39 @@ lifecycle and browser tests; upstream tools never become public automatically.
 ## Responsive layout checks (new in 0.1.3)
 
 `browser.resize` sets the selected tab viewport, using integer CSS pixels: width 320–3840 and height 240–2160. For a narrow layout, use `{"width":390,"height":844}`; then inspect a fresh snapshot or screenshot. It preserves the page and other tabs. The selected tab in an explicitly attached browser is affected too. This is responsive viewport sizing, not phone, touch, user-agent or operating-system window emulation. No new browser connection, profile, arbitrary script, or credential access is added.
+
+## Changes in 0.1.7 (2026-10-13)
+
+A patch release of 0.1.6, from a fresh-user verification of 0.1.6. The
+server offers the same 27 tools.
+
+- A `--browser-executable` path that does not exist is refused at startup,
+  as a missing channel browser already was. Before, the server started with
+  that path, the client showed it as connected with every browser tool, and
+  the first browser call failed with the browser library's own text
+  ("browserType.launch: Failed to launch chromium because executable doesn't
+  exist at ..."). Now the server does not start: it writes
+  "--browser-executable names PATH, which does not exist." (or "... is not a
+  file." for a folder, or "... must be an absolute path" for a relative one)
+  with the ways out to its error output and exits 1, and Claude Code shows
+  "Failed to connect" with the reason in its MCP log. A path that exists is
+  taken as before.
+- `INSTALL.txt` in the archives names `--home DIR` among its options and says
+  that `~/ToolsEngine` (`C:\Users\YOU\ToolsEngine`) is the account's own
+  profile even when `HOME` (`USERPROFILE`) points elsewhere; that the
+  installer runs a client only when that home is the account's own profile
+  and `CLAUDE_CONFIG_DIR` / `CODEX_HOME`, if set, point inside it; and that
+  otherwise it prints the two client commands and, with `--register`, ends
+  with exit code 2. The installer's printed guidance in that case says that
+  the install is complete, why the exit code is 2 and that `--home` plays no
+  part in it; `--help` says the exit code too. (The README said all of this
+  since 0.1.5; the archive's first file and the installer's own output did
+  not.)
+- The description of `workspace.write_file` says in so many words that it
+  does not create folders and why: a mistyped or invented path must not grow
+  a tree of folders in your workspace, and `workspace.list` shows the folders
+  that exist. The behaviour is unchanged since 0.1.6, and the "Tools"
+  section above explains the choice.
 
 ## Changes in 0.1.6 (2026-10-13)
 
