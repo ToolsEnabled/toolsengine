@@ -32,8 +32,12 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { compareWithRelease } from '../installer/install.mjs';
-import { comparePacked } from './package-files.js';
+import { comparePacked, PACKAGE_FILES } from './package-files.js';
 import { judgeTestRun, runTests } from './test-gate.js';
+
+export function npmCommandArgs(args, cache) {
+  return [...(cache ? ['--cache', path.resolve(cache)] : []), ...args];
+}
 
 const PORTABLE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TARGETS = Object.freeze([
@@ -274,7 +278,7 @@ export function validateTestLog(file, packageFolder) {
 
 export function testedTree(packageFolder) {
   const result = {};
-  for (const name of ['bin','src','native','docs','tests','tools','installer','node_modules','package.json','npm-shrinkwrap.json','README.md','LICENSE','NOTICE','SECURITY.md']) {
+  for (const name of new Set(['bin','src','native','docs','tests','tools','installer','node_modules','package.json','npm-shrinkwrap.json','README.md','LICENSE','NOTICE','SECURITY.md',...PACKAGE_FILES])) {
     const full = path.join(packageFolder, name);
     if (!fs.existsSync(full)) continue;
     const scan = (file, relative) => {
@@ -317,7 +321,7 @@ async function build() {
   // The npm started here must act on the folder it is given, not on the
   // project whose script is running: its inherited npm_* settings are dropped.
   const plainEnv = Object.fromEntries(Object.entries(process.env).filter(([name]) => !/^npm_/i.test(name)));
-  const npm = (args, cwd) => execFileSync(process.execPath, [process.env.npm_execpath, ...args], { cwd, env: plainEnv, encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] });
+  const npm = (args, cwd) => execFileSync(process.execPath, [process.env.npm_execpath, ...npmCommandArgs(args, options.cache)], { cwd, env: plainEnv, encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] });
 
   const pkg = readJson(path.join(PORTABLE, 'package.json'));
   const lockText = read(path.join(PORTABLE, 'npm-shrinkwrap.json'));

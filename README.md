@@ -6,6 +6,10 @@ ACL checks and guarded desktop focus/dialog repairs to 0.1.7
 (0.1.3 was the first public release); what changed in each is listed at the end. It offers 27 core tools; attached-browser modes offer 26.
 An explicit Windows desktop option adds four tools for existing signed-in apps.
 
+## Codex plugin
+
+The unreleased `openai-plugin` branch provides a local file/public-web plugin for Codex. See [Codex setup and limits](docs/CODEX.md) and [privacy](PRIVACY.md). The standard MCP connection below also supports explicit browser modes.
+
 ## Install
 
 ToolsEngine comes as one archive per system. Everything it needs to run is
