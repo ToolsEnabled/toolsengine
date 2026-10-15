@@ -145,8 +145,10 @@ Questions and problems go to <support@toolsenabled.ai> or to
    only your account can change it. `--install-root DIR` chooses another
    place. On Windows the installer creates new program and workspace folders
    with a protected DACL for your Windows account, SYSTEM and Administrators.
-   An existing program root is used only when its owner and ACL are trusted
-   and other accounts cannot change it; an unsafe or unverifiable root is
+   An existing program root must belong to your account and exclude other
+   accounts' write access. Every existing path ancestor must have a trusted
+   owner and exclude other accounts' replacement or ACL-changing rights.
+   Unsupported raw ACL rule types and unsafe or unverifiable roots are
    refused without changing its ACL. An existing workspace is used as supplied,
    with a notice if its ACL grants other accounts access. Directory paths may
    not traverse junctions or other reparse points. Windows PowerShell 5.1 in

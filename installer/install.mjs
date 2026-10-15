@@ -41,7 +41,7 @@ export function windowsDirectorySecurity(directory, { create = false } = {}) {
       env: { SystemRoot: systemRoot, WINDIR: systemRoot, USERPROFILE: os.homedir(), TEMP: os.tmpdir(), TMP: os.tmpdir() } });
   let answer;
   try { answer = JSON.parse(String(result.stdout || '').trim().replace(/^\uFEFF/, '')); } catch { /* reported below */ }
-  if (result.error || result.status !== 0 || answer?.ok !== true || ['ownerTrusted','ownedByUser','private','writeRestricted','protected'].some(key => typeof answer[key] !== 'boolean') || !/^S-\d(?:-\d+)+$/.test(answer.userSid || '') || !/^S-\d(?:-\d+)+$/.test(answer.ownerSid || ''))
+  if (result.error || result.status !== 0 || answer?.ok !== true || ['ownerTrusted','ownedByUser','private','writeRestricted','ancestorControlRestricted','protected'].some(key => typeof answer[key] !== 'boolean') || !/^S-\d(?:-\d+)+$/.test(answer.userSid || '') || !/^S-\d(?:-\d+)+$/.test(answer.ownerSid || ''))
     throw new Stop('Windows directory security could not be verified. Choose a local private folder and ensure Windows PowerShell 5.1 is available. Nothing was copied.');
   return answer;
 }
