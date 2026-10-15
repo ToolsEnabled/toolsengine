@@ -59,6 +59,29 @@ test('Codex launcher names missing durable runtime',()=>{const env={...process.e
 
 test('new plugin payload files participate in the tested-byte snapshot',async()=>{const fixture=await fs.mkdtemp(path.join(os.tmpdir(),'engine-payload-'));await fs.mkdir(path.join(fixture,'.agents/plugins'),{recursive:true});const relative='.agents/plugins/marketplace.json',file=path.join(fixture,relative);await fs.writeFile(file,'original fixture');const snapshot=testedTree(fixture);assert.doesNotThrow(()=>assertPackedBytes(file,relative,snapshot));await fs.writeFile(file,'changed fixture');assert.throws(()=>assertPackedBytes(file,relative,snapshot),/differs from the tested bytes/);});
 
-async function runtimeFixture(){const base=await fs.mkdtemp(path.join(os.tmpdir(),'engine-runtime-'));for(const file of ['package.json','npm-shrinkwrap.json'])await fs.copyFile(path.join(root,file),path.join(base,file));for(const folder of ['bin','src'])await fs.cp(path.join(root,folder),path.join(base,folder),{recursive:true});return base;}
+async function runtimeFixture(){const base=await fs.mkdtemp(path.join(os.tmpdir(),'engine-runtime-'));for(const file of ['package.json','npm-shrinkwrap.json'])await fs.copyFile(path.join(root,file),path.join(base,file));for(const folder of ['bin','src','native'])await fs.cp(path.join(root,folder),path.join(base,folder),{recursive:true});return base;}
 test('a source-mismatched durable runtime refuses before execution',async()=>{const runtime=await runtimeFixture();await fs.appendFile(path.join(runtime,'bin/toolsengine.js'),'\n// changed owned fixture\n');const r=spawnSync(entry.command,args,{cwd:root,env:{...process.env,...forwarded({TOOLSENGINE_CODEX_WORKSPACE:runtime,TOOLSENGINE_CODEX_RUNTIME:runtime})},encoding:'utf8',timeout:10000});assert.equal(r.status,1);assert.match(r.stderr,/runtime does not match/);assert.match(r.stderr,/bin\/toolsengine/);});
-test('a matching durable runtime without dependencies names setup and installs nothing',async()=>{const runtime=await runtimeFixture();const r=spawnSync(entry.command,args,{cwd:root,env:{...process.env,...forwarded({TOOLSENGINE_CODEX_WORKSPACE:root,TOOLSENGINE_CODEX_RUNTIME:runtime})},encoding:'utf8',timeout:10000});assert.equal(r.status,1);assert.match(r.stderr,/runtime setup required/);assert.match(r.stderr,/npm ci/);assert.equal((await fs.readdir(runtime)).includes('node_modules'),false);});
+test('a matching durable runtime without dependencies names setup and installs nothing',async()=>{const runtime=await runtimeFixture(),workspace=await fs.mkdtemp(path.join(os.tmpdir(),'engine-no-deps-project-'));const r=spawnSync(entry.command,args,{cwd:root,env:{...process.env,...forwarded({TOOLSENGINE_CODEX_WORKSPACE:workspace,TOOLSENGINE_CODEX_RUNTIME:runtime})},encoding:'utf8',timeout:10000});assert.equal(r.status,1);assert.match(r.stderr,/runtime setup required/);assert.match(r.stderr,/npm ci/);assert.equal((await fs.readdir(runtime)).includes('node_modules'),false);});
+
+async function preparedRuntime(){const runtime=await runtimeFixture();await fs.symlink(path.join(root,'node_modules'),path.join(runtime,'node_modules'),process.platform==='win32'?'junction':'dir');return runtime;}
+const launchSelected=(workspace,runtime)=>spawnSync(entry.command,args,{cwd:root,env:{...process.env,...forwarded({TOOLSENGINE_CODEX_WORKSPACE:workspace,TOOLSENGINE_CODEX_RUNTIME:runtime})},encoding:'utf8',timeout:10000});
+test('distinct plugin and durable runtime each refuse workspace root, child and parent',async()=>{
+ const runtime=await preparedRuntime();assert.notEqual(await fs.realpath(root),await fs.realpath(runtime));
+ const protectedCases=[['plugin root',root],['plugin child',path.join(root,'.codex-plugin')],['plugin parent',path.dirname(root)],['runtime root',runtime],['runtime child',path.join(runtime,'src')],['runtime parent',path.dirname(runtime)]];
+ for(const [label,workspace]of protectedCases){const r=launchSelected(workspace,runtime);assert.equal(r.status,1,`${label} was admitted: ${r.stderr}`);assert.match(r.stderr,/must not contain one another/,label);}
+});
+test('two-root launcher refuses symlink aliases consistently with canonical workspace rules',async()=>{
+ const runtime=await preparedRuntime(),base=await fs.mkdtemp(path.join(os.tmpdir(),'engine-root-alias-'));
+ for(const [label,target]of [['plugin',root],['runtime',runtime]]){
+  const alias=path.join(base,label);await fs.symlink(target,alias,process.platform==='win32'?'junction':'dir');assert.equal((await fs.lstat(alias)).isSymbolicLink(),true);assert.equal(await fs.realpath(alias),await fs.realpath(target));
+  const r=launchSelected(alias,runtime);assert.equal(r.status,1,`${label} alias was admitted`);assert.match(r.stderr,/links or junctions|must not contain one another/);
+ }
+});
+test('distinct plugin and durable runtime serve an unrelated workspace with actual file values', {timeout:30000},async t=>{
+ const runtime=await preparedRuntime(),workspace=await fs.mkdtemp(path.join(os.tmpdir(),'engine-unrelated-'));
+ const original=await fs.readFile(path.join(root,'.codex-plugin/start.mjs'));
+ const transport=new StdioClientTransport({command:entry.command,args,cwd:root,stderr:'pipe',env:{...process.env,...forwarded({TOOLSENGINE_CODEX_WORKSPACE:workspace,TOOLSENGINE_CODEX_RUNTIME:runtime})}});
+ let stderr='';transport.stderr?.on('data',c=>{stderr+=c;});const client=new Client({name:'two-physical-program-roots',version:'1'});t.after(()=>client.close());await client.connect(transport).catch(error=>{throw new Error(error.message+'; server stderr: '+stderr);});
+ const call=(name,arguments_={})=>client.callTool({name,arguments:arguments_});const status=JSON.parse((await call('system.status')).content[0].text);assert.equal(status.workspace,await fs.realpath(workspace));assert.equal(status.browserEnabled,false);
+ assert.equal((await call('workspace.write_file',{path:'boundary.txt',content:'two roots protected'})).isError,undefined);assert.equal(JSON.parse((await call('workspace.read_file',{path:'boundary.txt'})).content[0].text).content,'two roots protected');assert.deepEqual(await fs.readFile(path.join(root,'.codex-plugin/start.mjs')),original);assert.equal(stderr,'');
+});
