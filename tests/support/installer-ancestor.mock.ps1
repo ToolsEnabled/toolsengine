@@ -3,7 +3,7 @@ $ErrorActionPreference = 'Stop'
 $tokens = $null; $errors = $null
 $tree = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot '../../installer/windows-security.ps1'),[ref]$tokens,[ref]$errors)
 if ($errors.Count) { throw 'Installer security helper did not parse.' }
-foreach ($name in @('Refuse-Security','Assert-AncestorSecurity','Assess-RawSecurityDescriptor')) {
+foreach ($name in @('Refuse-Security','Assert-PlainLocalInput','Assert-AncestorSecurity','Assess-RawSecurityDescriptor')) {
   $function = $tree.Find({param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -ceq $name},$true)
   if (!$function) { throw ('Required function missing: '+$name) }
   Invoke-Expression $function.Extent.Text
@@ -15,6 +15,11 @@ foreach ($owner in @($false,$true)) { foreach ($control in @($false,$true)) {
   try { Assert-AncestorSecurity @{ownerTrusted=$owner;ancestorControlRestricted=$control} } catch { $refused = $true }
   Check ($refused -eq (!$owner -or !$control))
 } }
+foreach ($path in @('C:relative','\relative','\\server\share','C:\safe\name.','C:\safe\name ','C:\safe\..\other','C:\safe\file:stream','C:\safe\nul.txt')) {
+  $refused=$false;try { Assert-PlainLocalInput $path } catch { $refused=$true };Check $refused
+}
+Assert-PlainLocalInput 'C:\safe\normal-name'
+Check $true
 if ($RawDescriptors) {
   $user = 'S-1-5-21-111-222-333-1001'
   function Descriptor([string]$extra) { return New-Object Security.AccessControl.RawSecurityDescriptor("O:${user}D:P(A;;FA;;;${user})${extra}") }

@@ -5,8 +5,16 @@ $ErrorActionPreference = 'Stop'
 # This helper accepts paths, never capability contents or executable text.
 # It creates only missing directories; existing security descriptors are read only.
 function Refuse-Security([string]$reason) { throw [InvalidOperationException]::new($reason) }
+function Assert-PlainLocalInput([string]$value) {
+  if (!$value) { Refuse-Security 'Use an absolute local drive path.' }
+  $localSpelling = $value.Replace('/', '\')
+  if (!$localSpelling -or $localSpelling -notmatch '^[A-Za-z]:\\' -or $localSpelling.Substring(2).Contains(':')) { Refuse-Security 'Use an absolute local drive path.' }
+  foreach ($part in $localSpelling.Substring(3).Split('\', [StringSplitOptions]::RemoveEmptyEntries)) {
+    if ($part -in @('.','..') -or $part -match '[<>"|?*\x00-\x1f]' -or $part -match '[. ]$' -or $part -match '^(?i:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)') { Refuse-Security 'The directory name is not supported on Windows.' }
+  }
+}
 function Plain-DirectoryPath([string]$value) {
-  if (!$value -or $value -notmatch '^[A-Za-z]:\\' -or $value.Substring(2).Contains(':')) { Refuse-Security 'Use an absolute local drive path.' }
+  Assert-PlainLocalInput $value
   $full = [IO.Path]::GetFullPath($value)
   $current = [IO.Path]::GetPathRoot($full)
   Assert-AncestorSecurity (Read-DirectorySecurity $current)

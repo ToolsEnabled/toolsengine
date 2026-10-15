@@ -12,6 +12,6 @@ test('installer refuses untrusted ancestor owners and replacement rights; raw DA
   const result=JSON.parse(run.stdout.trim().replace(/^\uFEFF/,''));
   assert.equal(result.uiInvoked,false);
   assert.equal(result.passed,result.total);
-  assert.ok(result.passed >= (native ? 21 : 4));
+  assert.ok(result.passed >= (native ? 30 : 13));
   assert.equal(result.rawDescriptors,native);
 });
