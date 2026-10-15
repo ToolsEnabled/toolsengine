@@ -16,6 +16,8 @@ test('native installer creates private DACLs and refuses existing broadly writab
   const directory = path.join(base, 'private root', 'program');
   const created = windowsDirectorySecurity(directory, { create: true });
   assert.equal(created.private, true);
+  assert.equal(created.fileSystem, 'NTFS');
+  assert.equal(created.fixedDrive, true);
   assert.equal(created.writeRestricted, true);
   assert.equal(created.ownedByUser, true);
   assert.equal(created.protected, true);
@@ -24,11 +26,12 @@ test('native installer creates private DACLs and refuses existing broadly writab
   const widen = String.raw`$ErrorActionPreference='Stop'; $p=[Console]::In.ReadToEnd(); $a=[IO.Directory]::GetAccessControl($p); $s=New-Object Security.Principal.SecurityIdentifier('S-1-1-0'); $r=New-Object Security.AccessControl.FileSystemAccessRule($s,[Security.AccessControl.FileSystemRights]::FullControl,[Security.AccessControl.AccessControlType]::Allow); $null=$a.AddAccessRule($r); [IO.Directory]::SetAccessControl($p,$a); [Console]::WriteLine($a.GetSecurityDescriptorSddlForm([Security.AccessControl.AccessControlSections]::Access))`;
   const changed = spawnSync(shell(), ['-NoLogo', '-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(widen, 'utf16le').toString('base64')], { input: directory, encoding: 'utf8', timeout: 15000, windowsHide: true });
   assert.equal(changed.status, 0, changed.stderr);
-  const inspected = windowsDirectorySecurity(directory);
-  assert.equal(inspected.private, false);
-  assert.equal(inspected.writeRestricted, false);
+  assert.throws(() => windowsDirectorySecurity(directory), Stop, 'an outside account can change the existing directory itself');
   assert.throws(() => windowsDirectorySecurity(directory, { create: true }), Stop);
-  assert.equal(windowsDirectorySecurity(directory).writeRestricted, false, 'refusal changed the existing ACL');
+  const readAcl = String.raw`$p=[Console]::In.ReadToEnd(); [Console]::WriteLine([IO.Directory]::GetAccessControl($p).GetSecurityDescriptorSddlForm([Security.AccessControl.AccessControlSections]::Access))`;
+  const unchanged = spawnSync(shell(), ['-NoLogo', '-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(readAcl, 'utf16le').toString('base64')], { input: directory, encoding: 'utf8', timeout: 15000, windowsHide: true });
+  assert.equal(unchanged.status, 0, unchanged.stderr);
+  assert.equal(unchanged.stdout.trim(), changed.stdout.trim(), 'refusal changed the existing ACL');
   assert.equal(fs.readFileSync(path.join(directory, 'sentinel.txt'), 'utf8'), 'preserve me');
   assert.throws(() => windowsDirectorySecurity(path.join(directory, 'child'), { create: true }), Stop);
   assert.equal(fs.existsSync(path.join(directory, 'child')), false);

@@ -17,6 +17,7 @@ function Plain-DirectoryPath([string]$value) {
   Assert-PlainLocalInput $value
   $full = [IO.Path]::GetFullPath($value)
   $current = [IO.Path]::GetPathRoot($full)
+  $null = [ToolsEngineInstallerVolume]::InspectDirectory($current)
   Assert-AncestorSecurity (Read-DirectorySecurity $current)
   foreach ($part in $full.Substring($current.Length).Split('\', [StringSplitOptions]::RemoveEmptyEntries)) {
     if ($part -match '[<>"|?*\x00-\x1f]' -or $part -match '[. ]$' -or $part -match '^(?i:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)') { Refuse-Security 'The directory name is not supported on Windows.' }
@@ -24,6 +25,7 @@ function Plain-DirectoryPath([string]$value) {
     if ([IO.File]::Exists($current)) { Refuse-Security 'A directory path names a file.' }
     if ([IO.Directory]::Exists($current)) {
       if (([IO.File]::GetAttributes($current) -band [IO.FileAttributes]::ReparsePoint) -ne 0) { Refuse-Security 'Directory paths must not traverse reparse points or junctions.' }
+      $null = [ToolsEngineInstallerVolume]::InspectDirectory($current)
       Assert-AncestorSecurity (Read-DirectorySecurity $current)
     }
   }
@@ -92,11 +94,15 @@ try {
   $request = $inputText | ConvertFrom-Json
   if ($request.operation -cnotin @('inspect','create') -or $request.path -isnot [string] -or @($request.PSObject.Properties.Name | Where-Object { $_ -cnotin @('operation','path') }).Count) { Refuse-Security 'The path request is invalid.' }
   $script:userSid = [Security.Principal.WindowsIdentity]::GetCurrent().User
+  Add-Type -Path (Join-Path $PSScriptRoot 'windows-volume.cs')
   $directory = Plain-DirectoryPath $request.path
   if ($request.operation -ceq 'create') { New-PrivateDirectory $directory }
   $null = Plain-DirectoryPath $directory
   $result = Read-DirectorySecurity $directory
   if ($request.operation -ceq 'create' -and (!$result.ownedByUser -or !$result.writeRestricted)) { Refuse-Security 'The install directory must belong to this account and must not be writable by another account.' }
+  $volume = [ToolsEngineInstallerVolume]::InspectDirectory($directory)
+  $result.fileSystem = $volume.FileSystem
+  $result.fixedDrive = $volume.FixedDrive
   $result.ok = $true
   [Console]::WriteLine(($result | ConvertTo-Json -Compress))
 } catch {

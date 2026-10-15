@@ -388,6 +388,8 @@ async function build() {
   assertPackedBytes(path.join(common, 'install.mjs'), 'installer/install.mjs', snapshot);
   fs.copyFileSync(path.join(PORTABLE, 'installer', 'windows-security.ps1'), path.join(common, 'windows-security.ps1'));
   assertPackedBytes(path.join(common, 'windows-security.ps1'), 'installer/windows-security.ps1', snapshot);
+  fs.copyFileSync(path.join(PORTABLE, 'installer', 'windows-volume.cs'), path.join(common, 'windows-volume.cs'));
+  assertPackedBytes(path.join(common, 'windows-volume.cs'), 'installer/windows-volume.cs', snapshot);
   for (const name of ['LICENSE', 'NOTICE', 'SECURITY.md']) fs.copyFileSync(path.join(app, name), path.join(common, name));
 
   const catalogue = readJson(path.join(app, 'docs', 'tool-catalogue.json'));

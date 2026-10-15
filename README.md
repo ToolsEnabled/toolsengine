@@ -890,6 +890,8 @@ on 127.0.0.1. `tools/no-network.cjs`, preloaded through `NODE_OPTIONS`, makes
 a Node.js process refuse and log every use of the network; an install run
 under it shows that installing needs none.
 
+The Windows installer requires a fixed local NTFS volume. It checks drive type before opening each existing directory component and queries the actual opened handle's filesystem before creating any missing private directory. Mapped/network, removable and other filesystems refuse with no fallback. Native acceptance of this candidate remains pending; source parsing and Linux tests do not establish Windows support.
+
 ### Tested platforms and known limits
 
 - Tested on Windows 10 and on Linux with Node.js 22. macOS is untested.
