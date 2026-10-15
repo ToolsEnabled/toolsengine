@@ -339,10 +339,11 @@ let base, bundle, bin, home, stateFile, environment, emptyFolder;
 function makeBundle(directory) {
   fs.mkdirSync(path.join(directory, 'app', 'bin'), { recursive: true });
   fs.copyFileSync(INSTALLER, path.join(directory, 'install.mjs'));
+  fs.copyFileSync(new URL('../installer/windows-security.ps1', import.meta.url), path.join(directory, 'windows-security.ps1'));
   fs.writeFileSync(path.join(directory, 'app', 'bin', 'toolsengine.js'), STAND_IN_SERVER);
   fs.writeFileSync(path.join(directory, 'app', 'README.md'), '# stand-in\n');
   fs.writeFileSync(path.join(directory, 'app', 'package.json'), JSON.stringify({ name: 'stand-in', version: VERSION, type: 'module' }));
-  const files = ['install.mjs', 'app/bin/toolsengine.js', 'app/README.md', 'app/package.json'].map(name => {
+  const files = ['install.mjs', 'windows-security.ps1', 'app/bin/toolsengine.js', 'app/README.md', 'app/package.json'].map(name => {
     const data = fs.readFileSync(path.join(directory, ...name.split('/')));
     return { path: name, size: data.length, sha256: sha256(data), mode: name.endsWith('toolsengine.js') ? '755' : '644' };
   });

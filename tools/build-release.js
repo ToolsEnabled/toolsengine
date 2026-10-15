@@ -190,6 +190,7 @@ export function installText(target, release) {
     'WHAT YOU NEED',
     '',
     '  Node.js 22.14 or newer. Check with:   node --version',
+    ...(windows ? ['  Windows PowerShell 5.1 in the system directory (for installer ACL checks).'] : []),
     '  Nothing else. Nothing is downloaded: everything ToolsEngine needs is in this folder.',
     '  For the browser tools: Google Chrome or Microsoft Edge on this machine.',
     '',
@@ -205,6 +206,9 @@ export function installText(target, release) {
     `      ${home}${sep}workspace`,
     '  starts the installed server once to check it, and prints the command that',
     '  connects it to Claude Code and the one for Codex.',
+    ...(windows ? ['  New folders have a protected account/SYSTEM/Administrators DACL. An existing',
+      '  program root writable by another account is refused; its ACL is not changed.',
+      '  Junction/reparse and network-share directory paths are not supported.'] : []),
     `  (${windows ? 'C:\\Users\\YOU' : '~'} is your account's own profile as the system records it, even when`,
     `  ${windows ? 'USERPROFILE' : 'HOME'} points elsewhere; --home DIR installs under DIR instead.)`,
     '',
@@ -382,6 +386,8 @@ async function build() {
   // 5. Installer and the package's own licence and security-policy files at the top.
   fs.copyFileSync(path.join(PORTABLE, 'installer', 'install.mjs'), path.join(common, 'install.mjs'));
   assertPackedBytes(path.join(common, 'install.mjs'), 'installer/install.mjs', snapshot);
+  fs.copyFileSync(path.join(PORTABLE, 'installer', 'windows-security.ps1'), path.join(common, 'windows-security.ps1'));
+  assertPackedBytes(path.join(common, 'windows-security.ps1'), 'installer/windows-security.ps1', snapshot);
   for (const name of ['LICENSE', 'NOTICE', 'SECURITY.md']) fs.copyFileSync(path.join(app, name), path.join(common, name));
 
   const catalogue = readJson(path.join(app, 'docs', 'tool-catalogue.json'));

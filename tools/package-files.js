@@ -17,6 +17,7 @@ export const PACKAGE_FILES = Object.freeze([
   'docs/clients.md',
   'docs/desktop-catalogue.json',
   'docs/tool-catalogue.json',
+  'docs/windows-focus-recovery.md',
   'native/accessibility-desktop.cjs',
   'native/accessibility-desktop.ps1',
   'npm-shrinkwrap.json',

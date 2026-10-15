@@ -28,25 +28,29 @@ function withMockWindows(callback) {
 
 test('helper source: every refusal is a fixed sentence, and only refusals leave the catch block', async () => {
   const source = await fs.readFile(helperPath, 'utf8');
-  // PowerShell side: Refuse is the only way to raise, and it takes a literal.
+  // All raised text remains helper-owned. Stage guards and provider rethrows
+  // are rendered only through the tested allowlisted formatters.
   const raises = source.match(/\bthrow\b[^\n]*/g) || [];
-  assert.deepEqual(raises.filter(line => !/^throw new AccessibilityRefusal\("[^"\\$]+"\);/.test(line)).map(line => line.trim()),
-    ['throw $reason }', 'throw }'], 'the only PowerShell throws are inside Refuse and the provider rethrow');
+  const powershellRaises = raises.filter(line => !/^throw new AccessibilityRefusal\("[^"\\$]+"\);/.test(line)).map(line => line.trim());
+  const fixedRaises = new Set(['throw $reason }', 'throw }', 'throw', "throw 'Focus guard declined.' }"]);
+  for (const raised of powershellRaises) assert.ok(fixedRaises.has(raised), `untrusted raise: ${raised}`);
+  assert.ok(powershellRaises.includes("throw 'Focus guard declined.' }"));
   const refusals = [...source.matchAll(/\bRefuse (\S[^\n]*?)(?= \}|$)/gm)].map(match => match[1]);
   assert.ok(refusals.length >= 36, `found ${refusals.length} refusals`);
   for (const argument of refusals) {
-    // A single-quoted literal cannot interpolate. The one composed refusal
-    // appends only the two window rectangles, which are numbers.
-    assert.ok(/^'[^'$]+'$/.test(argument) || argument === "('Window geometry changed: ' + $geometryDiagnostic)", `not a fixed sentence: Refuse ${argument}`);
+    // A single-quoted literal cannot interpolate.
+    assert.ok(/^'[^'$]+'$/.test(argument), `not a fixed sentence: Refuse ${argument}`);
   }
-  assert.match(source, /\$geometryDiagnostic = @\{ expected=@\(\$frame\.left,\$frame\.top,\$frame\.right,\$frame\.bottom\); actual=@\(\$rect\.left,\$rect\.top,\$rect\.right,\$rect\.bottom\) \} \| ConvertTo-Json -Compress/);
-  // Catch block: the reason is taken from Refuse or AccessibilityRefusal only.
+  assert.doesNotMatch(source, /\$geometryDiagnostic/, 'raw rectangles are not returned as diagnostics');
+  // Catch block: new stage diagnostics precede the preserved trusted refusal path.
   const handler = source.slice(source.lastIndexOf('} catch {'));
+  assert.match(handler, /New-SafeFocusFailure \$script:desktopFailureCode \$script:desktopFailureHResult/);
+  assert.match(handler, /New-SafeDesktopFailure \$script:desktopFailureCode/);
   assert.match(handler, /\$cause\.GetType\(\)\.FullName -ceq 'AccessibilityRefusal'/);
   assert.match(handler, /\$_\.Exception\.Message -ceq \$script:refusal/);
   assert.match(handler, /Windows could not safely complete this request\. Inspect before retrying\. Helper line: /);
   assert.doesNotMatch(handler, /error = \$_\.Exception/, 'a raw exception message must never be written out');
-  assert.equal((handler.match(/error = /g) || []).length, 2, 'exactly two answers: the refusal and the generic sentence');
+  assert.equal((handler.match(/error = /g) || []).length, 2, 'preserved refusal and generic answers do not serialize provider content');
 });
 
 test('adapter passes a helper refusal on with its reason, and drops anything that is not one short sentence', async () => {

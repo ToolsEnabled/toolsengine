@@ -29,6 +29,23 @@ import { fileURLToPath } from 'node:url';
 const SELF = fileURLToPath(import.meta.url);
 const HERE = path.dirname(SELF);
 
+// Windows modes do not establish an ACL. The fixed native helper inspects
+// existing directories and creates only missing ones with a private DACL.
+export function windowsDirectorySecurity(directory, { create = false } = {}) {
+  const systemRoot = process.env.SystemRoot;
+  if (typeof systemRoot !== 'string' || !/^[a-z]:\\Windows$/i.test(systemRoot))
+    throw new Stop('SystemRoot must name the absolute Windows system directory before directory security can be checked.');
+  const result = spawnSync(path.win32.join(systemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'),
+    ['-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path.join(HERE, 'windows-security.ps1')],
+    { input: JSON.stringify({ operation: create ? 'create' : 'inspect', path: directory }), encoding: 'utf8', timeout: 15000, maxBuffer: 16384, windowsHide: true,
+      env: { SystemRoot: systemRoot, WINDIR: systemRoot, USERPROFILE: os.homedir(), TEMP: os.tmpdir(), TMP: os.tmpdir() } });
+  let answer;
+  try { answer = JSON.parse(String(result.stdout || '').trim().replace(/^\uFEFF/, '')); } catch { /* reported below */ }
+  if (result.error || result.status !== 0 || answer?.ok !== true || ['ownerTrusted','ownedByUser','private','writeRestricted','protected'].some(key => typeof answer[key] !== 'boolean') || !/^S-\d(?:-\d+)+$/.test(answer.userSid || '') || !/^S-\d(?:-\d+)+$/.test(answer.ownerSid || ''))
+    throw new Stop('Windows directory security could not be verified. Choose a local private folder and ensure Windows PowerShell 5.1 is available. Nothing was copied.');
+  return answer;
+}
+
 export const CLIENTS = Object.freeze(['claude', 'codex']);
 export const CLIENT_TITLES = Object.freeze({ claude: 'Claude Code', codex: 'Codex' });
 const COMMANDS = ['install', 'register', 'check', 'list', 'uninstall', 'help'];
@@ -1248,8 +1265,14 @@ async function install(options, log) {
       // New folders are for this account only (mode 700 outside Windows, where
       // the mode is not used): what the umask happens to be does not decide
       // who can change the program or read the workspace.
-      fs.mkdirSync(plan.root, { recursive: true, mode: PRIVATE_FOLDER });
-      fs.mkdirSync(workspace, { recursive: true, mode: PRIVATE_FOLDER });
+      if (process.platform === 'win32') {
+        windowsDirectorySecurity(plan.root, { create: true });
+        if (workspaceCreated) windowsDirectorySecurity(workspace, { create: true });
+        else windowsDirectorySecurity(workspace);
+      } else {
+        fs.mkdirSync(plan.root, { recursive: true, mode: PRIVATE_FOLDER });
+        fs.mkdirSync(workspace, { recursive: true, mode: PRIVATE_FOLDER });
+      }
     } catch (error) { throw new Stop(`The workspace folder could not be created (${error.code || error.message}): ${workspace}\nNothing was installed.`); }
     // The server refuses a workspace path that passes through a link.
     workspacePath = fs.realpathSync.native(workspace);
@@ -1342,6 +1365,8 @@ async function install(options, log) {
   log('Workspace');
   log(`  ${workspacePath}${options.dryRun ? (fs.existsSync(workspace) ? ' (exists)' : ' (would be created)') : workspaceCreated ? ' (created)' : ' (already there, left as it is)'}`);
   const workspaceOpen = options.dryRun ? null : openToOthers(workspace);
+  if (!options.dryRun && process.platform === 'win32' && !windowsDirectorySecurity(workspace).private)
+    log('  Note: this existing workspace grants access to other Windows accounts. It was used as supplied; its ACL was not changed.');
   if (workspaceOpen) log(`  Note: accounts other than yours may write into this folder (mode ${workspaceOpen}). It is used as it is.`);
   log('  The file tools read and write in this folder only, and the browser saves its screenshots');
   log('  and PDFs here. Keep nothing in it that the assistant should not read.');

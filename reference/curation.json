@@ -1,6 +1,6 @@
 {
   "record": "Public copy of the curation record that is kept beside the source repository (reference/curation.json there): the decision, reason and public replacements for each of the 261 core tools declared by the public ToolsEnabled engine at the commit under \"source\", without the live-source fields. tools/audit-package.js reads it when the source record is absent and checks it against the source record otherwise.",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "source": {
     "repo": "https://github.com/ToolsEnabled/toolsenabled-engine",
     "main": "1fe5317abe0cb624cf8fdfd1c7aa3a3696d629c9",

@@ -146,7 +146,7 @@ test('desktop.act types into the test window and the new text can be read back',
   // nothing and says so. Inspect again and try once more, as an assistant would.
   let result = await call('desktop.act', { kind: 'type', targetId: field.id, text: typed });
   if (result.isError) {
-    assert.match(textOf(result), /^(?:Focus changed before input\. Nothing was sent\.|Windows did not focus the confirmed window\. No text was sent\.|The confirmed field did not receive focus\. No text was sent\.)$/);
+    assert.match(textOf(result), /^(?:Focus changed before input\. Nothing was sent\.|Windows did not focus the confirmed window\. No text was sent\.|The confirmed field did not receive focus\. No text was sent\.|\[FOCUS_[A-Z_]+\] [^\r\n]*No text was sent\.(?: Capture the confirmed window again; if unobscured, choose a neutral point from the new image with desktop\.pointer click, then verify focus\.)?(?: HRESULT 0x[0-9A-F]{8}\.)?)$/);
     ({ mine, field } = await locate());
     assert.equal(field.text, firstText, 'a refused attempt must leave the text alone');
     result = await call('desktop.act', { kind: 'type', targetId: field.id, text: typed });
@@ -193,7 +193,7 @@ test('desktop.pointer is refused, with the reason, while the window is outside t
   await ok('desktop.capture', { windowId: mine[0].id });
   const refused = await call('desktop.pointer', { windowId: mine[0].id, kind: 'click', x: 60, y: 120 });
   assert.equal(refused.isError, true);
-  assert.equal(textOf(refused), 'Window is outside the left half of its monitor. desktop.pointer does not move windows. Use desktop.act with kind focus on this window, capture it again, then point.');
+  assert.equal(textOf(refused), '[WINDOW_OUTSIDE_LEFT_HALF] The window is outside the left half. Use desktop.act with kind focus on this window, then desktop.capture. Choose coordinates from the new image before trying again. No pointer input was sent.');
   // The picture is spent by the refused attempt.
   const second = await call('desktop.pointer', { windowId: mine[0].id, kind: 'click', x: 60, y: 120 });
   assert.equal(second.isError, true);

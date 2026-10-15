@@ -1,7 +1,8 @@
 # ToolsEngine portable MCP
 
 A separate local MCP server for browser automation, workspace files and public
-web reading on Windows and Linux. Version 0.1.7 is a patch release of 0.1.6
+web reading on Windows and Linux. Version 0.1.8 adds native Windows installer
+ACL checks and guarded desktop focus/dialog repairs to 0.1.7
 (0.1.3 was the first public release); what changed in each is listed at the end. It offers 27 core tools; attached-browser modes offer 26.
 An explicit Windows desktop option adds four tools for existing signed-in apps.
 
@@ -97,7 +98,7 @@ npm install -g ./toolsenabled-toolsengine-VERSION.tgz
 toolsengine --version
 ```
 
-`toolsengine --version` prints `ToolsEngine 0.1.7`. Start the server with an
+`toolsengine --version` prints `ToolsEngine 0.1.8`. Start the server with an
 existing absolute folder as the workspace and the installed browser by name:
 
 ```
@@ -142,7 +143,14 @@ Questions and problems go to <support@toolsenabled.ai> or to
    purpose. On some machines `AppData` and shared work folders can be changed
    by sandboxed apps, and a program that an assistant runs should sit where
    only your account can change it. `--install-root DIR` chooses another
-   place.
+   place. On Windows the installer creates new program and workspace folders
+   with a protected DACL for your Windows account, SYSTEM and Administrators.
+   An existing program root is used only when its owner and ACL are trusted
+   and other accounts cannot change it; an unsafe or unverifiable root is
+   refused without changing its ACL. An existing workspace is used as supplied,
+   with a notice if its ACL grants other accounts access. Directory paths may
+   not traverse junctions or other reparse points. Windows PowerShell 5.1 in
+   the system directory is required for these checks.
 2. **Creates a workspace folder**, `ToolsEngine\workspace`, unless you name
    one with `--workspace DIR`. A named folder that does not exist is created;
    an existing one is used as it is. The file tools read and write in this
@@ -833,7 +841,7 @@ npm run audit:package
 npm audit --omit=dev
 ```
 
-`npm run audit:package` packs the package and refuses anything but its 22
+`npm run audit:package` packs the package and refuses anything but its listed
 files, scans them for internal material, and compares both tool catalogues
 with the running server and with `reference/curation.json`, the record of
 the decision taken for each of the 261 tools of the public ToolsEnabled
@@ -913,6 +921,24 @@ lifecycle and browser tests; upstream tools never become public automatically.
 ## Responsive layout checks (new in 0.1.3)
 
 `browser.resize` sets the selected tab viewport, using integer CSS pixels: width 320–3840 and height 240–2160. For a narrow layout, use `{"width":390,"height":844}`; then inspect a fresh snapshot or screenshot. It preserves the page and other tabs. The selected tab in an explicitly attached browser is affected too. This is responsive viewport sizing, not phone, touch, user-agent or operating-system window emulation. No new browser connection, profile, arbitrary script, or credential access is added.
+
+## Changes in 0.1.8 (Windows port candidate)
+
+- New Windows program and workspace folders receive protected DACLs before
+  files are copied. Existing program roots with untrusted owners or write
+  permissions are refused; their ACLs are never rewritten. Existing workspace
+  access is reported. Junction and nonlocal namespace paths are refused.
+- Desktop focus raises only the confirmed window without moving/resizing it,
+  rechecks foreground and window identity, and never asks a top-level UIA
+  provider for keyboard focus. Selected fields receive a bounded exact-identity
+  focus wait. Helper-owned stage diagnostics omit provider exception text.
+- Control inspection prioritizes nested dialogs within fixed enumeration
+  bounds, deduplicates runtime identities, and exposes text input only on
+  writable ComboBoxes. Pointer refusals distinguish held input, obscured or
+  changed targets and uncertain delivery without exposing provider text.
+- Inert native regression fixtures and native DACL/junction tests accompany
+  the changes. Windows interrupted-install recovery remains deliberately
+  refused; use the matching archive's documented manual recovery route.
 
 ## Changes in 0.1.7 (2026-10-13)
 
@@ -1180,3 +1206,7 @@ Compared with 0.1.3-rc.1:
   is now one of them.
 - `web.fetch` sends the version as its user agent.
 - Release archives with an installer: see "Install".
+
+### Windows foreground refusals
+
+See [Windows focus recovery](docs/windows-focus-recovery.md) for bounded activation, safe refusal diagnostics, and recovery when an application rejects focus. Activation remains dependent on Windows and the selected application.
