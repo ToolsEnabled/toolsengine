@@ -1,0 +1,21 @@
+{
+  "name": "toolsengine",
+  "version": "0.1.8",
+  "description": "Local files and public web",
+  "skills": "./codex-skills/",
+  "mcpServers": "./.codex-plugin/mcp.json",
+  "hooks": {},
+  "interface": {
+    "displayName": "ToolsEngine",
+    "shortDescription": "Local files and public web",
+    "developerName": "ToolsEnabled, Inc.",
+    "category": "Productivity",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://toolsenabled.ai/toolsengine/",
+    "supportURL": "https://github.com/ToolsEnabled/toolsengine/issues",
+    "privacyPolicyURL": "https://github.com/ToolsEnabled/toolsengine/blob/openai-plugin/PRIVACY.md"
+  }
+}

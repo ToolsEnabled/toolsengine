@@ -1,0 +1,20 @@
+{
+  "name": "toolsengine",
+  "interface": {
+    "displayName": "ToolsEngine"
+  },
+  "plugins": [
+    {
+      "name": "toolsengine",
+      "source": {
+        "source": "local",
+        "path": "./"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

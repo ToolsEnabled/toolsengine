@@ -32,7 +32,11 @@
     "npm-shrinkwrap.json",
     "native",
     "tests/browser-extension.test.js",
-    "tests/support/browser-under-test.js"
+    "tests/support/browser-under-test.js",
+    ".codex-plugin",
+    ".agents/plugins/marketplace.json",
+    "codex-skills",
+    "PRIVACY.md"
   ],
   "scripts": {
     "start": "node bin/toolsengine.js",

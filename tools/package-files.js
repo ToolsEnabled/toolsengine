@@ -9,6 +9,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 export const PACKAGE_FILES = Object.freeze([
+  '.agents/plugins/marketplace.json',
+  '.codex-plugin/mcp.json',
+  '.codex-plugin/plugin.json',
+  '.codex-plugin/start.mjs',
+  'codex-skills/toolsengine/SKILL.md',
+  'docs/CODEX.md',
+  'PRIVACY.md',
   'LICENSE',
   'NOTICE',
   'README.md',
@@ -35,7 +42,7 @@ export const PACKAGE_FILES = Object.freeze([
 ]);
 
 // The folders that are packed whole.
-export const PACKED_FOLDERS = Object.freeze(['bin', 'docs', 'native', 'src']);
+export const PACKED_FOLDERS = Object.freeze(['bin', 'docs', 'native', 'src', '.codex-plugin', 'codex-skills']);
 
 // Files in the packed folders that are not files of the package.
 export function strayFiles(packageDirectory) {
