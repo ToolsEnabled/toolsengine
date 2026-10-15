@@ -8,13 +8,18 @@ codex plugin add toolsengine@toolsengine
 codex plugin list --json
 ```
 
-The install result identifies the cached plugin folder. Review its `package.json` and `npm-shrinkwrap.json`, then, from that folder, run:
+Prepare a durable runtime outside the Codex plugin cache and outside your project. From a terminal, choose a new private folder and clone the same branch there, then install its pinned dependencies:
 
 ```sh
+git clone --branch openai-plugin https://github.com/ToolsEnabled/toolsengine.git /chosen/toolsengine-runtime
+cd /chosen/toolsengine-runtime
 npm ci --omit=dev --ignore-scripts
+export TOOLSENGINE_CODEX_RUNTIME="$PWD"
 ```
 
-This explicit setup downloads pinned dependencies from registry.npmjs.org (or your configured npm registry). Startup itself never installs or downloads anything and names missing setup. No browser download or system-wide install is performed. Re-run this setup after updating/reinstalling the plugin cache; do not run it in an unrelated project. Before starting Codex, explicitly select an existing project outside the plugin folder: in a POSIX shell from that project use `export TOOLSENGINE_CODEX_WORKSPACE="$PWD"`; in PowerShell use `$env:TOOLSENGINE_CODEX_WORKSPACE = (Get-Location).Path`. Restart Codex with this environment. Missing or relative selection is refused. The selected folder becomes the server workspace; all existing physical path and traversal checks apply. A project containing the installed plugin, or inside it, is refused.
+Replace the example path with a folder you choose. In PowerShell set `$env:TOOLSENGINE_CODEX_RUNTIME = (Get-Location).Path` after setup. This explicit setup downloads dependencies from registry.npmjs.org or your configured registry. Startup never installs or downloads anything. The launcher compares runtime source and lock bytes with its installed plugin and refuses missing/mismatched setup. Keep this runtime outside the plugin cache: Codex can refresh that cache on session start, removing dependencies installed directly there. After updating the plugin, prepare the matching runtime revision in a new folder and select it. A matching release archive's app folder can also supply the runtime. No browser download or system-wide install is performed.
+
+Before starting Codex, explicitly select an existing project outside the plugin folder: in a POSIX shell from that project use `export TOOLSENGINE_CODEX_WORKSPACE="$PWD"`; in PowerShell use `$env:TOOLSENGINE_CODEX_WORKSPACE = (Get-Location).Path`. Restart Codex with this environment. Missing or relative selection is refused. The selected folder becomes the server workspace; all existing physical path and traversal checks apply. A project containing the installed plugin, or inside it, is refused.
 
 Ask: “Use ToolsEngine system.status, write plugin-check.txt with the text hello in this project, then read it back.” Expect browserEnabled false, a successful write and exactly hello. This plugin offers the eight file/public-web/status/discovery tools of --no-browser. Browser/desktop integration remains available through the separate explicit MCP configuration in [clients.md](clients.md); it is not qualified by this plugin check. Do not install this plugin and a duplicate manually registered ToolsEngine server in the same session unless you deliberately want both.
 

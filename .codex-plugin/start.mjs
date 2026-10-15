@@ -1,16 +1,19 @@
-// Codex's narrow local-file/public-web connection. No installer or network at startup.
+// A durable user-selected runtime survives Codex replacing its installed plugin cache.
 import {createRequire} from 'node:module';
-import {isAbsolute} from 'node:path';
-const workspace=process.env.TOOLSENGINE_CODEX_WORKSPACE;
-if(!workspace||!isAbsolute(workspace)){console.error('ToolsEngine Codex: set TOOLSENGINE_CODEX_WORKSPACE to your existing absolute project directory before starting Codex.');process.exit(1);}
-const require = createRequire(import.meta.url);
+import {isAbsolute,join} from 'node:path';
+import {readFile} from 'node:fs/promises';
+import {fileURLToPath,pathToFileURL} from 'node:url';
+const workspace=process.env.TOOLSENGINE_CODEX_WORKSPACE, runtime=process.env.TOOLSENGINE_CODEX_RUNTIME;
 try {
-  require.resolve('@modelcontextprotocol/sdk/server/stdio.js');
-} catch {
-  console.error('ToolsEngine Codex setup required: in the installed plugin folder, run npm ci --omit=dev --ignore-scripts after reviewing docs/CODEX.md. Startup downloads nothing.');
-  process.exit(1);
-}
-// The host supplies the explicit project environment. Keep physical workspace checks.
-process.argv = [process.execPath, new URL('../bin/toolsengine.js', import.meta.url).pathname,
-  '--workspace', workspace, '--no-browser'];
-await import('../bin/toolsengine.js');
+ if(!workspace||!isAbsolute(workspace))throw new Error('Set TOOLSENGINE_CODEX_WORKSPACE to your existing absolute project directory before starting Codex.');
+ if(!runtime||!isAbsolute(runtime))throw new Error('Set TOOLSENGINE_CODEX_RUNTIME to a prepared durable ToolsEngine folder; see docs/CODEX.md. Startup installs nothing.');
+ const root=fileURLToPath(new URL('../',import.meta.url));
+ for(const file of ['package.json','npm-shrinkwrap.json','bin/toolsengine.js','src/artifacts.js','src/browser.js','src/config.js','src/desktop.js','src/extension-worker.js','src/server.js','src/web.js','src/workspace.js']){
+  let bytes;try{bytes=await readFile(join(runtime,file));}catch{throw new Error('ToolsEngine runtime setup required: '+file+' is missing. See docs/CODEX.md.');}
+  if(!bytes.equals(await readFile(join(root,file))))throw new Error('ToolsEngine runtime does not match this plugin: '+file+'. Prepare the matching branch/runtime; see docs/CODEX.md.');
+ }
+ try{createRequire(pathToFileURL(join(runtime,'package.json'))).resolve('@modelcontextprotocol/sdk/server/stdio.js');}
+ catch{throw new Error('ToolsEngine runtime setup required: run npm ci --omit=dev --ignore-scripts in your chosen durable runtime folder. Startup downloads nothing.');}
+ process.argv=[process.execPath,join(runtime,'bin/toolsengine.js'),'--workspace',workspace,'--no-browser'];
+ await import(pathToFileURL(join(runtime,'bin/toolsengine.js')).href);
+}catch(error){console.error('ToolsEngine Codex: '+error.message);process.exitCode=1;}

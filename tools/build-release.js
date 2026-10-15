@@ -32,7 +32,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { compareWithRelease } from '../installer/install.mjs';
-import { comparePacked } from './package-files.js';
+import { comparePacked, PACKAGE_FILES } from './package-files.js';
 import { judgeTestRun, runTests } from './test-gate.js';
 
 export function npmCommandArgs(args, cache) {
@@ -278,7 +278,7 @@ export function validateTestLog(file, packageFolder) {
 
 export function testedTree(packageFolder) {
   const result = {};
-  for (const name of ['bin','src','native','docs','tests','tools','installer','node_modules','package.json','npm-shrinkwrap.json','README.md','LICENSE','NOTICE','SECURITY.md']) {
+  for (const name of new Set(['bin','src','native','docs','tests','tools','installer','node_modules','package.json','npm-shrinkwrap.json','README.md','LICENSE','NOTICE','SECURITY.md',...PACKAGE_FILES])) {
     const full = path.join(packageFolder, name);
     if (!fs.existsSync(full)) continue;
     const scan = (file, relative) => {
