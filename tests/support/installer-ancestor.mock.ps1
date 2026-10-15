@@ -20,7 +20,7 @@ if ($RawDescriptors) {
   function Descriptor([string]$extra) { return New-Object Security.AccessControl.RawSecurityDescriptor("O:${user}D:P(A;;FA;;;${user})${extra}") }
   $safe = Assess-RawSecurityDescriptor (Descriptor '') $user
   Check ($safe.private -and $safe.writeRestricted -and $safe.ancestorControlRestricted -and $safe.ownedByUser)
-  foreach ($right in @('SD','DC','WD','WO','GA','GW')) {
+  foreach ($right in @('SD','DC','WD','WO','GA','GW','0x00000100','0x00000010')) {
     $unsafe = Assess-RawSecurityDescriptor (Descriptor "(A;;${right};;;WD)") $user
     Check (!$unsafe.writeRestricted -and !$unsafe.ancestorControlRestricted)
   }

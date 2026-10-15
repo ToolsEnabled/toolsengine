@@ -33,7 +33,7 @@ function Assess-RawSecurityDescriptor($raw, [string]$userSidValue) {
   $ancestorControlRestricted = $true
   # Generic masks can appear in a raw ACE before the filesystem maps them.
   $writeRights = 0x10000000L -bor 0x40000000L -bor 0x000D0156L
-  $replacementRights = 0x10000000L -bor 0x40000000L -bor 0x000D0040L
+  $replacementRights = 0x10000000L -bor 0x40000000L -bor 0x000D0150L
   foreach ($ace in $raw.DiscretionaryAcl) {
     # Do not drop grants that the managed GetAccessRules view cannot represent.
     # Object, callback/conditional and unknown ACEs require a separate audited
