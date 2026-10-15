@@ -55,11 +55,13 @@ function Assess-RawSecurityDescriptor($raw, [string]$userSidValue) {
       if (($mask -band $writeRights) -ne 0) { $writeRestricted = $false }
       # An inherit-only ACE grants nothing on this existing ancestor. Its
       # actual children are checked in turn; new private roots discard it.
-      $inheritOnly = ($ace.AceFlags -band [Security.AccessControl.AceFlags]::InheritOnly) -ne 0
+      # Windows PowerShell 5.1 cannot reliably bitwise-combine byte-backed
+      # enums. Preserve the numeric flag policy with explicit Int32 operands.
+      $inheritOnly = ([int]$ace.AceFlags -band [int][Security.AccessControl.AceFlags]::InheritOnly) -ne 0
       if (!$inheritOnly -and ($mask -band $replacementRights) -ne 0) { $ancestorControlRestricted = $false }
     }
   }
-  return @{ ownerSid=$ownerSid; userSid=$userSidValue; ownerTrusted=($trusted -contains $ownerSid); ownedByUser=($ownerSid -eq $userSidValue); private=$private; writeRestricted=$writeRestricted; ancestorControlRestricted=$ancestorControlRestricted; protected=($raw.ControlFlags -band [Security.AccessControl.ControlFlags]::DiscretionaryAclProtected) -ne 0 }
+  return @{ ownerSid=$ownerSid; userSid=$userSidValue; ownerTrusted=($trusted -contains $ownerSid); ownedByUser=($ownerSid -eq $userSidValue); private=$private; writeRestricted=$writeRestricted; ancestorControlRestricted=$ancestorControlRestricted; protected=([int]$raw.ControlFlags -band [int][Security.AccessControl.ControlFlags]::DiscretionaryAclProtected) -ne 0 }
 }
 function Read-DirectorySecurity([string]$directory) {
   if (![IO.Directory]::Exists($directory)) { Refuse-Security 'The directory does not exist.' }
