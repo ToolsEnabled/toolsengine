@@ -8,7 +8,7 @@ An explicit Windows desktop option adds four tools for existing signed-in apps.
 
 ## Codex plugin
 
-The unreleased `openai-plugin` branch provides a local file/public-web plugin for Codex. See [Codex setup and limits](docs/CODEX.md) and [privacy](PRIVACY.md). The standard MCP connection below also supports explicit browser modes.
+Version 0.1.8 provides a self-distributed local file/public-web plugin for Codex. See [Codex setup and limits](docs/CODEX.md) and [privacy](PRIVACY.md). The standard MCP connection below also supports explicit browser modes.
 
 ## Install
 
@@ -900,7 +900,7 @@ The Windows installer requires a fixed local NTFS volume. It checks drive type b
 
 ### Tested platforms and known limits
 
-- Tested on Windows 10 and on Linux with Node.js 22. macOS is untested.
+- Windows native regression environment: Windows 10 Pro 22H2 build 19045, Node.js 22.14.0 and Windows PowerShell 5.1.19041.6456. Inert desktop fixtures and source security checks are separate from owner GUI acceptance. Windows 11 and macOS are untested. Linux uses Node.js 22; browser tests use private headless Chromium.
 - The Windows desktop tools exist on Windows only. There is no Linux or macOS
   desktop input.
 - Browser tests are headless; where a headed window appears on screen is not
