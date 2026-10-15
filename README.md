@@ -148,6 +148,8 @@ Questions and problems go to <support@toolsenabled.ai> or to
    An existing program root must belong to your account and exclude other
    accounts' write access. Every existing path ancestor must have a trusted
    owner and exclude other accounts' replacement or ACL-changing rights.
+   The exact measured TrustedInstaller service SID is accepted only as an
+   existing ancestor owner; it gains no private-entry ownership or writer grant.
    Unsupported raw ACL rule types and unsafe or unverifiable roots are
    refused without changing its ACL. An existing workspace is used as supplied,
    with a notice if its ACL grants other accounts access. Directory paths may

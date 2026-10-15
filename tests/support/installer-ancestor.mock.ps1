@@ -25,11 +25,15 @@ if ($RawDescriptors) {
   function Descriptor([string]$extra) { return New-Object Security.AccessControl.RawSecurityDescriptor("O:${user}D:P(A;;FA;;;${user})${extra}") }
   $safe = Assess-RawSecurityDescriptor (Descriptor '') $user
   Check ($safe.private -and $safe.writeRestricted -and $safe.ancestorControlRestricted -and $safe.ownedByUser)
-  foreach ($right in @('SD','DC','WD','WO','GA','GW','0x00000100','0x00000010')) {
+  # SDDL DC is object-specific bit 0x2, not file FILE_DELETE_CHILD (0x40).
+  # Numeric file masks avoid borrowing directory-service abbreviations.
+  Check ((Descriptor '(A;;DC;;;WD)').DiscretionaryAcl[1].AccessMask -eq 2)
+  Check ((Descriptor '(A;;0x00000040;;;WD)').DiscretionaryAcl[1].AccessMask -eq 64)
+  foreach ($right in @('SD','0x00000040','WD','WO','GA','GW','0x00000100','0x00000010')) {
     $unsafe = Assess-RawSecurityDescriptor (Descriptor "(A;;${right};;;WD)") $user
     Check (!$unsafe.writeRestricted -and !$unsafe.ancestorControlRestricted)
   }
-  foreach ($right in @('RD','AD','RC')) {
+  foreach ($right in @('0x00000001','0x00000002','0x00000004','0x00020000')) {
     $readOrSiblingCreate = Assess-RawSecurityDescriptor (Descriptor "(A;;${right};;;WD)") $user
     Check ($readOrSiblingCreate.ancestorControlRestricted)
   }
@@ -41,6 +45,16 @@ if ($RawDescriptors) {
   $refused = $false
   try { Assert-AncestorSecurity $foreign } catch { $refused=$true }
   Check ($refused -and !$foreign.ownerTrusted)
+  $serviceOwner = Descriptor ''
+  $serviceOwner.Owner = New-Object Security.Principal.SecurityIdentifier('S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464')
+  $service = Assess-RawSecurityDescriptor $serviceOwner $user
+  Check (!$service.ownerTrusted -and !$service.ownedByUser)
+  $refused=$false;try { Assert-AncestorSecurity $service } catch { $refused=$true };Check (!$refused)
+  $unsafeServiceOwner = Descriptor '(A;;0x00040000;;;WD)'
+  $unsafeServiceOwner.Owner=$serviceOwner.Owner
+  $refused=$false;try { Assert-AncestorSecurity (Assess-RawSecurityDescriptor $unsafeServiceOwner $user) } catch { $refused=$true };Check $refused
+  $serviceOwner.Owner=New-Object Security.Principal.SecurityIdentifier('S-1-5-80-1-2-3-4-5')
+  $refused=$false;try { Assert-AncestorSecurity (Assess-RawSecurityDescriptor $serviceOwner $user) } catch { $refused=$true };Check $refused
   foreach ($kind in @('callback','object','null')) {
     $raw = Descriptor ''
     if ($kind -eq 'null') { $raw.DiscretionaryAcl=$null }

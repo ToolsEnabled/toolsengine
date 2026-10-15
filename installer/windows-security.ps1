@@ -32,7 +32,11 @@ function Plain-DirectoryPath([string]$value) {
   return $full
 }
 function Assert-AncestorSecurity($security) {
-  if (!$security.ownerTrusted -or !$security.ancestorControlRestricted) { Refuse-Security 'An ancestor can be replaced or its ACL changed by another account. Choose a private local path.' }
+  # Measured native C:\ owner: NT SERVICE\TrustedInstaller. This exception
+  # applies only to existing ancestor ownership, never private-entry owners or
+  # allowed DACL writers; all replacement/control checks still apply.
+  $ancestorOwnerTrusted = $security.ownerTrusted -or $security.ownerSid -ceq 'S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464'
+  if (!$ancestorOwnerTrusted -or !$security.ancestorControlRestricted) { Refuse-Security 'An ancestor can be replaced or its ACL changed by another account. Choose a private local path.' }
 }
 function Assess-RawSecurityDescriptor($raw, [string]$userSidValue) {
   if ($null -eq $raw.DiscretionaryAcl -or $null -eq $raw.Owner) { Refuse-Security 'A null DACL or missing owner is not supported.' }
