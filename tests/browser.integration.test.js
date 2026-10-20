@@ -144,6 +144,15 @@ test('explicit CDP attachment lists tabs and disconnects without closing the bro
       catch (error) { errors.push(new Error(`${label}: ${error.message}`, { cause: error })); }
     };
     await attempt('Bridge cleanup', () => boundedCleanup(bridge?.close(), 'Bridge cleanup'));
+    // This test owns the directly spawned browser. A CDP client's close()
+    // only disconnects; killing its root on Windows can leave descendants
+    // holding stderr open, so the ChildProcess close event never arrives.
+    // Ask this fixture's browser to shut down its whole tree first.
+    await attempt('Fixture browser shutdown', async () => {
+      if (!fixtureOwner?.isConnected()) return;
+      const session = await fixtureOwner.newBrowserCDPSession();
+      await boundedCleanup(session.send('Browser.close'), 'Fixture browser shutdown');
+    });
     await attempt('Fixture owner cleanup', () => boundedCleanup(fixtureOwner?.close(), 'Fixture owner cleanup'));
     await attempt('Fixture process cleanup', () => stopFixtureProcess(child));
     if (fixtureSocket) await attempt('Fixture temporary directory cleanup', () => fixtureSocket.close());
