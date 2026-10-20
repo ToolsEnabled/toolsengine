@@ -380,6 +380,32 @@ const reset = () => {
   fs.rmSync(stateFile, { force: true });
   fs.rmSync(environment.CLAUDE_CONFIG_DIR, { recursive: true, force: true });
 };
+// A refused Windows recovery must preserve every entry and payload byte. Do
+// not follow links: their own targets are part of this snapshot.
+function snapshotTreeBytes(directory) {
+  const entries = [];
+  const visit = (folder, prefix) => {
+    for (const name of fs.readdirSync(folder).sort()) {
+      const file = path.join(folder, name), relative = prefix ? `${prefix}/${name}` : name;
+      const stat = fs.lstatSync(file);
+      if (stat.isSymbolicLink()) entries.push([relative, 'link', fs.readlinkSync(file)]);
+      else if (stat.isDirectory()) { entries.push([relative, 'directory']); visit(file, relative); }
+      else { assert.ok(stat.isFile(), `unexpected fixture entry: ${relative}`); entries.push([relative, 'file', sha256(fs.readFileSync(file))]); }
+    }
+  };
+  visit(directory, '');
+  return entries;
+}
+function assertWindowsRecoveryRefusedUnchanged(result, before) {
+  assert.ok(windows, 'this counterpart is specific to Windows recovery policy');
+  assert.equal(result.status, 1, result.out);
+  assert.match(result.out, /Automatic recovery on Windows is refused because installer ownership cannot be verified here/);
+  assert.match(result.out, /Nothing was changed/);
+  assert.deepEqual(snapshotTreeBytes(installed()), before, 'no entry or payload byte may be adopted, removed or rewritten');
+  if (fs.existsSync(installed('installation.json'))) assert.equal(record().state, 'installing');
+  assert.deepEqual(clientState().calls, [], 'a refused recovery must not invoke client registration');
+}
+
 // Give the stand-in clients earlier registrations, and no recorded calls. The
 // stand-in Claude Code then writes its configuration file from them.
 function seedClients(registered, settings = {}, otherClaudeServers = {}) {
@@ -521,10 +547,19 @@ test('install: a workspace that only looks apart from the program folder is refu
   const link = path.join(base, 'a link to somewhere');
   fs.symlinkSync(root, link, windows ? 'junction' : 'dir');
   try {
+    const before = snapshotTreeBytes(root), linkTarget = fs.readlinkSync(link);
     const result = installer(['--browser', 'none', '--workspace', link]);
     assert.equal(result.status, 1, result.out);
-    assert.match(result.out, /They must not contain one another/);
-    assert.ok(result.out.includes(fs.realpathSync.native(root)), 'the real folder is named');
+    if (windows) {
+      // Native path custody refuses the junction before containment reporting.
+      assert.match(result.out, /Windows directory security could not be verified/);
+      assert.ok(result.out.includes(link), 'the refused workspace path is named');
+      assert.deepEqual(snapshotTreeBytes(root), before, 'the target entries and bytes are unchanged');
+      assert.equal(fs.readlinkSync(link), linkTarget, 'the junction itself is unchanged');
+    } else {
+      assert.match(result.out, /They must not contain one another/);
+      assert.ok(result.out.includes(fs.realpathSync.native(root)), 'the real folder is named');
+    }
     assert.ok(!fs.existsSync(installed()), 'nothing may be installed');
     assert.deepEqual(fs.readdirSync(root), [], 'and nothing half-copied may be left');
   } finally {
@@ -1095,7 +1130,8 @@ test('a client is not run when its configuration variable points outside the per
   assert.match(fromInstalled(['list']).out, /Claude Code: not run: CLAUDE_CONFIG_DIR pointed outside your profile/);
 });
 
-test('an install that was interrupted can be installed again, and can be uninstalled', () => {
+test(windows ? 'an interrupted Windows install refuses adoption and permits explicit matching-archive removal'
+  : 'an install that was interrupted can be installed again, and can be uninstalled', () => {
   const interrupt = () => {
     reset();
     const killed = installer(['--browser', 'none'], { STAND_IN_KILL_INSTALLER: '1' });
@@ -1103,9 +1139,69 @@ test('an install that was interrupted can be installed again, and can be uninsta
     assert.ok(fs.existsSync(installed('app', 'bin', 'toolsengine.js')), 'the files were copied before the interruption');
   };
 
-  // 1. Installing again finishes it: the files are complete, so nothing is copied again.
+  // Linux can establish installer liveness; Windows deliberately refuses
+  // automatic recovery. Keep that fail-closed policy and its bytes explicit.
   interrupt();
+  const before = windows ? snapshotTreeBytes(installed()) : null;
   let result = installer(['--browser', 'none']);
+  if (windows) {
+    assertWindowsRecoveryRefusedUnchanged(result, before);
+    assert.deepEqual(compareWithRelease(readRelease(installed()), installed()), []);
+    // An unfinished install is not offered as a working version.
+    for (const command of ['check', 'register']) {
+      const check = fromInstalled(command === 'register' ? ['register', 'claude'] : [command]);
+      assert.equal(check.status, 1, check.out);
+      assert.match(check.out, /was not finished/);
+    }
+    assert.deepEqual(clientState().calls, []);
+    assert.match(fromInstalled(['list']).out, /install not finished/);
+    assert.deepEqual(snapshotTreeBytes(installed()), before);
+
+    // Explicit removal is still supported, from both matching copies.
+    assert.equal(installer(['uninstall']).status, 0);
+    assert.ok(!fs.existsSync(installed()));
+    interrupt();
+    assert.equal(fromInstalled(['uninstall']).status, 0);
+    assert.ok(!fs.existsSync(installed()));
+
+    // A missing stamp never permits adoption; the matching archive can remove
+    // a complete copy, but an installed copy cannot vouch for its own list.
+    interrupt();
+    fs.rmSync(installed('installation.json'));
+    const withoutStamp = snapshotTreeBytes(installed());
+    assertWindowsRecoveryRefusedUnchanged(installer(['--browser', 'none']), withoutStamp);
+    const untrustedOwnList = fromInstalled(['uninstall']);
+    assert.equal(untrustedOwnList.status, 1, untrustedOwnList.out);
+    assert.match(untrustedOwnList.out, /no record of its install/);
+    assert.deepEqual(snapshotTreeBytes(installed()), withoutStamp);
+    assert.equal(installer(['uninstall']).status, 0);
+    assert.ok(!fs.existsSync(installed()));
+    interrupt();
+    fs.rmSync(installed('installation.json'));
+    assert.equal(installer(['uninstall']).status, 0);
+    assert.ok(!fs.existsSync(installed()));
+
+    // A changed/missing listed payload remains a separate refusal, with no
+    // rewrite; explicit uninstall removes it and a fresh install succeeds.
+    interrupt();
+    fs.rmSync(installed('app', 'README.md'));
+    const missingPayload = snapshotTreeBytes(installed());
+    const damaged = installer(['--browser', 'none']);
+    assert.equal(damaged.status, 1, damaged.out);
+    assert.match(damaged.out, /not complete/);
+    assert.match(damaged.out, /install\.mjs["']? uninstall/);
+    assert.deepEqual(snapshotTreeBytes(installed()), missingPayload);
+    assert.equal(installer(['uninstall']).status, 0);
+    assert.ok(!fs.existsSync(installed()));
+    assert.equal(installer(['--browser', 'none']).status, 0);
+    const finished = snapshotTreeBytes(installed());
+    const repeated = installer(['--browser', 'none']);
+    assert.equal(repeated.status, 1, repeated.out);
+    assert.match(repeated.out, /never written over/);
+    assert.deepEqual(snapshotTreeBytes(installed()), finished);
+    return;
+  }
+  // 1. Installing again finishes it: the files are complete, so nothing is copied again.
   assert.equal(result.status, 0, result.out);
   assert.match(result.out, /was not finished/);
   assert.match(result.out, /3 tools offered \(3 expected\)/);
@@ -1155,7 +1251,8 @@ test('an install that was interrupted can be installed again, and can be uninsta
   assert.equal(installer(['--browser', 'none']).status, 0);
 });
 
-test('an interrupted install is finished only in a folder that holds nothing else, and only when its installer is gone', () => {
+test(windows ? 'Windows recovery preserves extra entries and unknown liveness, while explicit removal is bounded'
+  : 'an interrupted install is finished only in a folder that holds nothing else, and only when its installer is gone', () => {
   const interrupt = () => {
     reset();
     const killed = installer(['--browser', 'none'], { STAND_IN_KILL_INSTALLER: '1' });
@@ -1176,7 +1273,61 @@ test('an interrupted install is finished only in a folder that holds nothing els
   const stamp = fs.readFileSync(installed('installation.json'), 'utf8');
   fs.mkdirSync(installed('app', 'bin', 'node_modules', 'planted'), { recursive: true });
   fs.writeFileSync(installed('app', 'bin', 'node_modules', 'planted', 'index.js'), 'not from the archive');
+  const before = windows ? snapshotTreeBytes(installed()) : null;
   let result = installer(['--browser', 'none']);
+  if (windows) {
+    assertWindowsRecoveryRefusedUnchanged(result, before);
+    assert.equal(fs.readFileSync(installed('installation.json'), 'utf8'), stamp);
+    assert.match(result.out, /matching archive/);
+    // Extra modules, a single extra file and a link all remain untouched.
+    fs.rmSync(installed('app', 'bin', 'node_modules'), { recursive: true });
+    fs.writeFileSync(installed('app', 'extra.js'), 'x');
+    fs.symlinkSync(base, installed('a link'), 'junction');
+    try {
+      const withLink = snapshotTreeBytes(installed());
+      assertWindowsRecoveryRefusedUnchanged(installer(['--browser', 'none']), withLink);
+    } finally { fs.rmdirSync(installed('a link')); }
+    assert.equal(installer(['uninstall']).status, 0);
+    assert.deepEqual(fs.readdirSync(installed(), { recursive: true }).map(String).sort(), ['app', path.join('app', 'extra.js')]);
+    assert.equal(fs.readFileSync(installed('app', 'extra.js'), 'utf8'), 'x');
+
+    // The pure unexpected-items census is applicable on Windows as well.
+    const { unexpectedItems, stillInstalling } = installerModule;
+    assert.equal(typeof unexpectedItems, 'function');
+    interrupt();
+    const release = readRelease(installed());
+    assert.deepEqual(unexpectedItems(release, installed()), []);
+    fs.writeFileSync(installed('install-log.txt.bak'), 'x');
+    fs.mkdirSync(installed('app', 'src'));
+    assert.deepEqual(unexpectedItems(release, installed()), ['app/src/', 'install-log.txt.bak']);
+    fs.rmSync(installed('install-log.txt.bak'));
+    fs.rmdirSync(installed('app', 'src'));
+
+    // A live PID or forged liveness fields cannot supply the missing native
+    // process identity or make recovery eligible. Every byte stays unchanged.
+    const saved = record();
+    assert.ok(Number.isInteger(saved.installerPid) && saved.installerPid > 0);
+    assert.equal(saved.installerHost, os.hostname());
+    const identity = installerModule.currentProcessIdentity();
+    assert.deepEqual(identity, { scope: null, start: null });
+    fs.writeFileSync(installed('installation.json'), JSON.stringify({ ...saved, installerPid: process.pid, installerScope: identity.scope, installerProcessStart: identity.start }));
+    assertWindowsRecoveryRefusedUnchanged(installer(['--browser', 'none']), snapshotTreeBytes(installed()));
+    fs.writeFileSync(installed('installation.json'), JSON.stringify(saved));
+    assertWindowsRecoveryRefusedUnchanged(installer(['--browser', 'none']), snapshotTreeBytes(installed()));
+    assert.equal(typeof stillInstalling, 'function');
+    const elsewhere = { state: 'installing', installerPid: 4321, installerHost: 'another-machine', installerScope: identity.scope, installerProcessStart: 'test', startedAt: new Date().toISOString() };
+    for (const entry of [elsewhere, { ...elsewhere, startedAt: new Date(Date.now() - 2 * 86400000).toISOString() },
+      { ...elsewhere, installerHost: os.hostname() }]) {
+      assert.match(stillInstalling(entry), /identity cannot be established; explicit recovery/);
+      assert.match(stillInstalling(entry, { alive: () => false }), /identity cannot be established; explicit recovery/);
+    }
+    assert.match(stillInstalling({ ...elsewhere, installerHost: os.hostname(), installerScope: 'forged-scope' },
+      { alive: () => false, identity: () => ({ scope: 'forged-scope', start: 'test' }) }), /explicit recovery/);
+    assert.equal(stillInstalling({ ...elsewhere, state: 'installed' }, { alive: () => true }), null);
+    assert.match(stillInstalling(null), /explicit recovery/);
+    assert.match(stillInstalling({ state: 'installing' }), /explicit recovery/);
+    return;
+  }
   refusedUnchanged(result, /holds 1 item\(s\) that are not part of this release \(app\/bin\/node_modules\/\)/);
   assert.equal(fs.readFileSync(installed('installation.json'), 'utf8'), stamp, 'not even the record may be rewritten');
   assert.match(result.out, /install\.mjs["']? uninstall/);
