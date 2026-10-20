@@ -133,7 +133,9 @@ test('explicit CDP attachment lists tabs and disconnects without closing the bro
   // given a short one in that case, as the server gives its own browser.
   const fixtureSocket = process.platform==='linux' ? await workspaceSocketTemp(root) : null;
   const fixtureTemp=fixtureSocket?.envPath;
-  const child = spawn(executable, ['--headless', '--no-sandbox', '--remote-debugging-port=0', '--no-first-run', '--no-default-browser-check', `--user-data-dir=${path.join(root, 'test-profile')}`, 'about:blank'],
+  // Isolate this synthetic fixture from the desktop password store, as
+  // Playwright does for browsers it launches itself.
+  const child = spawn(executable, ['--headless', '--no-sandbox', '--password-store=basic', '--use-mock-keychain', '--remote-debugging-port=0', '--no-first-run', '--no-default-browser-check', `--user-data-dir=${path.join(root, 'test-profile')}`, 'about:blank'],
     { stdio: ['ignore', 'ignore', 'pipe'], windowsHide: true, ...(fixtureTemp ? { env: { ...process.env, TMPDIR: fixtureTemp } } : {}) });
   let bridge;
   let fixtureOwner;

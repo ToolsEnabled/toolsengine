@@ -383,19 +383,40 @@ export async function closeBrowserResources({removeTemp,waitForOpening=async()=>
 
 // Leave native download configuration and completion events to the
 // dependency. Observe owned temporary files for incoming size enforcement.
-export function observeOwnedDownloadDirectory(directory, fileBytes, onExcess) {
-  let closed=false;const checking=new Set();
-  const watcher=watch(directory,(_event,name)=>{
+export function observeOwnedDownloadDirectory(directory, fileBytes, onExcess,
+  { watchDirectory = watch, statFile = file => fs.lstat(file) } = {}) {
+  let closed=false;const checking=new Map();
+  const inspect = file => {
+    if(closed)return;
+    const pending=checking.get(file);
+    if(pending){pending.dirty=true;return;}
+    const current={dirty:false};checking.set(file,current);
+    (async()=>{
+      // Chrome may replace an empty destination while lstat is sampling it.
+      // A removed inode can report zero links. Reinspect the current name;
+      // never accept that stale observation as validation of its replacement.
+      for(let attempt=0;attempt<3&&!closed;attempt++){
+        const stat=await statFile(file);
+        if(closed)return;
+        if(stat.isFile()&&!stat.isSymbolicLink()&&stat.nlink===0){
+          if(attempt===2)onExcess('unsafe');
+          continue;
+        }
+        if(stat.isSymbolicLink()||stat.isFile()&&stat.nlink!==1)onExcess('unsafe');
+        else if(stat.isFile()&&stat.size>fileBytes)onExcess('size');
+        return;
+      }
+    })().catch(error=>{if(!closed&&error.code!=='ENOENT')onExcess('unsafe');})
+      .finally(()=>{
+        checking.delete(file);
+        // A replacement/growth event may arrive during the awaited stat.
+        if(current.dirty&&!closed)inspect(file);
+      });
+  };
+  const watcher=watchDirectory(directory,(_event,name)=>{
     if(closed||!name)return;
     const file=path.resolve(directory,String(name));
-    if(path.dirname(file)!==directory||checking.has(file))return;
-    checking.add(file);
-    fs.lstat(file).then(stat=>{
-      if(closed)return;
-      if(stat.isSymbolicLink()||stat.isFile()&&stat.nlink!==1)onExcess('unsafe');
-      else if(stat.isFile()&&stat.size>fileBytes)onExcess('size');
-    }).catch(error=>{if(!closed&&error.code!=='ENOENT')onExcess('unsafe');})
-      .finally(()=>checking.delete(file));
+    if(path.dirname(file)===directory)inspect(file);
   });
   watcher.on('error',()=>{if(!closed)onExcess('unsafe');});
   return {close(){closed=true;watcher.close();}};
