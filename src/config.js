@@ -1,3 +1,4 @@
+import { assertPluginProfile } from './plugin-policy.js';
 import fs from 'node:fs/promises';
 import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
@@ -104,7 +105,7 @@ async function plainDirectory(value, { create = false } = {}) {
 export async function parseConfig(args, { env = process.env } = {}) {
   const config = { headless: true, browser: true, browserSandbox: true, allowLocalNetwork: false };
   const values = new Map([
-    ['--workspace', 'workspace'], ['--profile-dir', 'profileDir'],
+    ['--plugin-profile', 'pluginProfile'], ['--workspace', 'workspace'], ['--profile-dir', 'profileDir'],
     ['--browser-executable', 'browserExecutable'], ['--browser-channel', 'browserChannel'],
     ['--cdp-endpoint', 'cdpEndpoint'],
     ['--desktop-profile-root', 'desktopProfileRoot'],
@@ -128,6 +129,7 @@ export async function parseConfig(args, { env = process.env } = {}) {
     else throw new Error(`Unknown option: ${arg}`);
   }
   if (config.help || config.version) return config;
+  assertPluginProfile(config);
   if (!config.browser && (config.profileDir || config.cdpEndpoint || config.browserExtension || config.browserExecutable || config.browserChannel || config.firefoxDesktop))
     throw new Error('--no-browser cannot be combined with browser configuration.');
   if (config.firefoxDesktop) {

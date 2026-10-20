@@ -31,3 +31,5 @@ The standalone MCP's optional Firefox profile-transfer capability is outside
 this plugin entry. The launcher fixes its arguments to `--no-browser`, and
 the server rejects browser/profile-transfer dispatch in that mode. Installing
 the full matching runtime does not add those capabilities to the plugin.
+
+The launcher fixes `--plugin-profile openai --no-browser`. This profile rejects browser, desktop and private-network options before startup and fixes the eight-tool registry for both listing and execution. See [PLUGIN-POLICY.md](PLUGIN-POLICY.md) for the reviewed scope and marketplace status.

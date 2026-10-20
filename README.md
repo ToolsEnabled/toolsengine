@@ -1,5 +1,7 @@
 # ToolsEngine portable MCP
 
+Vendor distribution boundaries and current review status: [docs/PLUGIN-POLICY.md](docs/PLUGIN-POLICY.md).
+
 Optional Linux Firefox UI control is documented in
 [Private Firefox on Linux](docs/hidden-firefox.md). It uses an authenticated
 private display and a separate profile, preserves the browser sandbox, and

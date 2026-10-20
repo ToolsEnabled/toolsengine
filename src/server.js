@@ -1,3 +1,4 @@
+import { assertPluginProfile, restrictPluginTools } from './plugin-policy.js';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import Ajv2020 from 'ajv/dist/2020.js';
@@ -207,15 +208,17 @@ export function createCallQueue({ maxPending = 8, maxPerMinute = 120, now = Date
 }
 
 export async function createToolsEngine(config, { makeBrowserBridge = createBrowserBridge, makeFirefoxBridge = createFirefoxBrowserBridge } = {}) {
+  assertPluginProfile(config);
   const desktopTools = createDesktopTools(config);
   const browser = config.browser === false ? null : await (config.firefoxDesktop ? makeFirefoxBridge : makeBrowserBridge)(config);
-  const tools = [...await createWorkspaceTools(config), ...await createWebTools(config), ...(browser?.tools || []), ...desktopTools];
+  let tools = [...await createWorkspaceTools(config), ...await createWebTools(config), ...(browser?.tools || []), ...desktopTools];
   const status = {
     name: 'system.status', title: 'ToolsEngine status',
     description: 'Read ToolsEngine version, platform, workspace, offered capabilities and configured browser session type. Does not launch a browser or verify a browser connection or authentication. browserSandbox is the setting the server asks for when it starts a browser, not a check of a running browser.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     annotations: { title: 'ToolsEngine status', readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     handler: async () => ({ name: 'ToolsEngine', version: VERSION, platform: process.platform, node: process.version,
+      distributionProfile: config.pluginProfile || 'standalone-mcp',
       desktopEnabled: Boolean(config.desktopProfileRoot), desktopLeftHalf: Boolean(config.desktopLeftHalf),
       desktopAllowSignIn: Boolean(config.desktopProfileRoot && config.desktopAllowSignIn),
       workspace: config.workspace, ...browserCapabilityStatus(config, Boolean(browser)),
@@ -230,6 +233,7 @@ export async function createToolsEngine(config, { makeBrowserBridge = createBrow
     annotations: { title: 'Find offered tools', readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     handler: async ({ query }) => findTools(tools, query),
   });
+  tools = restrictPluginTools(tools, config.pluginProfile);
   const ajv = new Ajv2020({ strict: false, allErrors: true, useDefaults: true });
   const registry = new Map(tools.map(tool => [tool.name, { ...tool, validate: ajv.compile(tool.inputSchema) }]));
   if (registry.size !== tools.length) throw new Error('Duplicate public tool name.');
