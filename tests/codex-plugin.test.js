@@ -30,6 +30,8 @@ test('Codex package launches no-browser mode and confines actual file calls to s
  const status=JSON.parse((await call('system.status')).content[0].text);
  assert.equal(status.browserEnabled,false);
  const {tools}=await client.listTools();assert.equal(tools.length,8);
+ assert(!tools.some(tool=>tool.name.includes('firefox')||tool.name.startsWith('browser.')));
+ assert.equal((await call('browser.transfer_firefox_profile',{})).isError,true);
  assert.equal((await call('workspace.write_file',{path:'owned.txt',content:'actual value 42'})).isError,undefined);
  const read=JSON.parse((await call('workspace.read_file',{path:'owned.txt'})).content[0].text);assert.equal(read.content,'actual value 42');
  assert.equal((await call('workspace.read_file',{path:'../outside.txt'})).isError,true);

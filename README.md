@@ -1,5 +1,10 @@
 # ToolsEngine portable MCP
 
+Optional Linux Firefox UI control is documented in
+[Private Firefox on Linux](docs/hidden-firefox.md). It uses an authenticated
+private display and a separate profile, preserves the browser sandbox, and
+does not copy passwords or cookies from your everyday browser.
+
 A separate local MCP server for browser automation, workspace files and public
 web reading on Windows and Linux. Version 0.1.8 adds native Windows installer
 ACL checks and guarded desktop focus/dialog repairs to 0.1.7
@@ -320,6 +325,11 @@ legacy or unverifiable markers are preserved for explicit recovery. Recovery
 requires verifiable ownership and plain directories, files and parents; linked
 or unreadable records are refused. Windows recovery is currently refused
 because this implementation cannot verify the required ownership there.
+
+On Windows this installer cannot establish process-instance identity, so
+`.incoming-*` folders are preserved even when their process number no longer
+exists. A successful fresh install can leave these older copies beside the new
+version; it does not attempt deletion using only a process number.
 
 ### Starting it by hand, and from source
 

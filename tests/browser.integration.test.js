@@ -82,14 +82,20 @@ test('a browser started before the downloads folder is found tampered with is cl
   // to this test alone, whatever runs beside it.
   const temp = path.join(root, 'process-temp');
   await fs.mkdir(temp);
-  const savedTemp = process.env.TMPDIR;
-  process.env.TMPDIR = temp;
-  t.after(() => { if (savedTemp === undefined) delete process.env.TMPDIR; else process.env.TMPDIR = savedTemp; });
+  const tempVariables = ['TEMP', 'TMP', 'TMPDIR'];
+  const savedTemp = Object.fromEntries(tempVariables.map(name => [name, process.env[name]]));
+  for (const name of tempVariables) process.env[name] = temp;
+  t.after(() => {
+    for (const name of tempVariables) {
+      if (savedTemp[name] === undefined) delete process.env[name];
+      else process.env[name] = savedTemp[name];
+    }
+  });
   const workspace = path.join(root, 'workspace');
   const elsewhere = path.join(root, 'elsewhere');
   await fs.mkdir(path.join(workspace, '.toolsengine-runtime'), { recursive: true });
   await fs.mkdir(elsewhere);
-  await fs.symlink(elsewhere, path.join(workspace, '.toolsengine-runtime', 'downloads'), 'dir');
+  await fs.symlink(elsewhere, path.join(workspace, '.toolsengine-runtime', 'downloads'), process.platform === 'win32' ? 'junction' : 'dir');
   const bridge = await createBrowserBridge({ workspace, headless: true, browserExecutable: process.env.TOOLSENGINE_TEST_BROWSER,
     browserSandbox: process.env.TOOLSENGINE_TEST_NO_SANDBOX !== '1' });
   t.after(async () => { await bridge.close(); await fs.rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }); });

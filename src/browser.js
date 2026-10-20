@@ -614,7 +614,7 @@ export async function createBrowserBridge(config, options = {}) {
       await closeBrowserResources({
         removeTemp:async()=>{downloadObserver?.close();downloadObserver=undefined;await removeShortTemp();},
         waitForOpening:()=>opening?.catch(()=>{}),
-        resources:()=>[ownedBrowser || ownedContext?.browser(),ownedContext,connectedBrowser],
+        resources:()=>[ownedContext,ownedBrowser || ownedContext?.browser(),connectedBrowser],
       });
     } finally { ownedContext=undefined;ownedBrowser=undefined;connectedBrowser=undefined; }
   };

@@ -6,6 +6,8 @@ import { createWorkspaceTools } from './workspace.js';
 import { createWebTools } from './web.js';
 import { createDesktopTools } from './desktop.js';
 import { VERSION } from './config.js';
+import { createFirefoxBrowserBridge } from './firefox.js';
+import { agentBrowserStatus, agentFirefoxInstructions } from './browser-session.js';
 
 export function browserCapabilityStatus(config, enabled) {
   if (!enabled) return {
@@ -22,6 +24,7 @@ export function browserCapabilityStatus(config, enabled) {
     browserConnectionVerified: false,
     browserAuthenticationVerified: false,
   };
+  if (config.firefoxDesktop) return agentBrowserStatus(config);
   if (config.browserExtension) return {
     browserEnabled: true,
     browserMode: 'attached',
@@ -120,6 +123,7 @@ const BROWSER_INSTRUCTIONS = Object.freeze({
   attached: 'The browser tools act in an already-running browser chosen at startup, in its open tabs and with its signed-in sessions: every action there is an action in the person\'s own browser.',
   extension: "The browser tools act in the person's everyday browser, through the Playwright Extension installed there, starting in the tab shared by the extension, with that browser's signed-in sessions: every action there is an action in the person's own browser and accounts. The first browser call opens the extension's connect page in that browser. Without a startup token, it is an approval page: the person chooses a tab and approves each connection; a startup token skips approval. Browser calls wait until the extension connects. Ask the person to approve when approval is required; never try to approve it yourself. Cancelling a browser call or stopping this server disconnects its relay, preserving the person's browser and tabs. Closing the approval page alone leaves the relay waiting.",
   none: 'No browser tools are offered in this connection.',
+  firefox: agentFirefoxInstructions(),
 });
 // sandbox: false only when the server was started with --no-browser-sandbox.
 // The assistant is then told that its browser has no sandbox: nothing else
@@ -133,7 +137,7 @@ export function serverInstructions({ browser, desktop, sandbox = true, desktopAl
     ...(ownBrowser && sandbox === false ? ['This server was started with --no-browser-sandbox, by the person\'s choice: its browser runs without Chromium\'s sandbox, so a page that exploits a fault in the browser can act as the person\'s account. Open only addresses the person asked for or that their task needs.'] : []),
     ...(browser === 'none' ? [] : [
       'Take a browser.snapshot before acting on a page.',
-      `Most browser calls also write a small page-snapshot file under artifacts/toolsengine in the workspace (the newest 64 are kept)${ownBrowser ? '; downloads use unique names and preserve existing files. A page can start one at any time; saved artifacts are capped at 256 files and 64 MiB, 16 MiB per file, including at most 32 downloads' : ''}.`,
+      ...(browser === 'firefox' ? ['Firefox observations are returned to the client; this mode does not automatically save page-snapshot artifacts.'] : [`Most browser calls also write a small page-snapshot file under artifacts/toolsengine in the workspace (the newest 64 are kept)${ownBrowser ? '; downloads use unique names and preserve existing files. A page can start one at any time; saved artifacts are capped at 256 files and 64 MiB, 16 MiB per file, including at most 32 downloads' : ''}.`]),
       // An attached browser keeps its own way with downloads (ATTACH_OPTIONS in browser.js).
       ...(ownBrowser ? [] : ['A download that a page starts there is left to that browser and is not copied into the workspace.']),
     ]),
@@ -202,9 +206,9 @@ export function createCallQueue({ maxPending = 8, maxPerMinute = 120, now = Date
   };
 }
 
-export async function createToolsEngine(config, { makeBrowserBridge = createBrowserBridge } = {}) {
+export async function createToolsEngine(config, { makeBrowserBridge = createBrowserBridge, makeFirefoxBridge = createFirefoxBrowserBridge } = {}) {
   const desktopTools = createDesktopTools(config);
-  const browser = config.browser === false ? null : await makeBrowserBridge(config);
+  const browser = config.browser === false ? null : await (config.firefoxDesktop ? makeFirefoxBridge : makeBrowserBridge)(config);
   const tools = [...await createWorkspaceTools(config), ...await createWebTools(config), ...(browser?.tools || []), ...desktopTools];
   const status = {
     name: 'system.status', title: 'ToolsEngine status',
@@ -232,7 +236,7 @@ export async function createToolsEngine(config, { makeBrowserBridge = createBrow
   const server = new Server({ name: 'toolsengine', version: VERSION }, {
     capabilities: { tools: {} },
     instructions: serverInstructions({
-      browser: !browser ? 'none' : config.browserExtension ? 'extension' : config.cdpEndpoint ? 'attached' : config.profileDir ? 'dedicated' : 'temporary',
+      browser: !browser ? 'none' : config.firefoxDesktop ? 'firefox' : config.browserExtension ? 'extension' : config.cdpEndpoint ? 'attached' : config.profileDir ? 'dedicated' : 'temporary',
       desktop: desktopTools.length > 0,
       desktopAllowSignIn: config.desktopAllowSignIn === true,
       sandbox: config.browserSandbox !== false,

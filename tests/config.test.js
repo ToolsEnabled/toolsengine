@@ -195,10 +195,15 @@ test('a workspace that is the program folder under another spelling, or holds it
   assert.equal(await foldersOverlap(aboveInOtherCase, program, { identify: caseless }), true, 'a folder above it, spelled in another case');
   assert.equal(await foldersOverlap(at('mnt', 'c', 'tools', 'toolsengine', '1.0', 'app', 'SRC'), program, { identify: caseless }), true, 'a folder inside it, spelled in another case');
   assert.equal(await foldersOverlap(at('mnt', 'c', 'work'), program, { identify: caseless }), false, 'another folder of that mount is fine');
-  // As text, none of these three has anything to do with the program folder.
+  // A Windows path comparison itself proves the first two containments,
+  // because it ignores case. The remaining comparison needs physical identity;
+  // an injected unknown identity must refuse rather than invent that proof.
   const textOnly = { identify: async () => null };
-  for (const workspace of [sameFolderOtherCase, aboveInOtherCase, at('mnt', 'c', 'tools', 'toolsengine', '1.0', 'app', 'SRC')])
-    if (process.platform === 'win32') assert.equal(await foldersOverlap(workspace, program, textOnly), true); else await assert.rejects(foldersOverlap(workspace, program, textOnly), /identity/);
+  for (const workspace of [sameFolderOtherCase, aboveInOtherCase]) {
+    if (process.platform === 'win32') assert.equal(await foldersOverlap(workspace, program, textOnly), true);
+    else await assert.rejects(foldersOverlap(workspace, program, textOnly), /identity/);
+  }
+  await assert.rejects(foldersOverlap(at('mnt', 'c', 'tools', 'toolsengine', '1.0', 'app', 'SRC'), program, textOnly), /identity/);
 
   // 2. A second mount: /srv/tools shows the same folder as /opt/tools.
   const mounted = fileSystem({

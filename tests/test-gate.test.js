@@ -3,6 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import vm from 'node:vm';
 import * as gate from '../tools/test-gate.js';
 
 const summary = (tests, pass, fail, skipped) => `1..${tests}\n# tests ${tests}\n# suites 0\n# pass ${pass}\n# fail ${fail}\n# cancelled 0\n# skipped ${skipped}\n# todo 0\n# duration_ms 12.5\n`;
@@ -70,4 +71,39 @@ test('the skip reasons the build looks for are the ones the browser tests give, 
   for (const file of gate.BROWSER_TEST_FILES) assert.ok(testFiles.includes(file.replace(/^tests\//, '')), `${file} does not exist`);
   const browserSources = gate.BROWSER_TEST_FILES.map(file => source(file.replace(/^tests\//, ''))).join('\n');
   for (const words of gate.KNOWN_BROWSER_SKIPS) assert.ok(browserSources.includes(`'${words}'`), `no browser test skips with this reason: ${words}`);
+});
+
+
+test('the Windows-only XDG skip has one exact identity and cannot replace required live browser successes', () => {
+  const raw = fs.readFileSync(new URL('../tools/test-gate.js', import.meta.url), 'utf8');
+  const pure = raw.slice(raw.indexOf('export const BROWSER_TESTS_DID_NOT_RUN'), raw.indexOf('// Run every test file sequentially')).replace(/^export /gm, '');
+  const load = platform => vm.runInNewContext(pure + ';({judgeTestRun,unrecognisedBrowserSkips,REQUIRED_BROWSER_SUCCESSES})', {process:{platform}});
+  const win = load('win32'), linux = load('linux');
+  const row = { file:'tests/browser-modes.integration.test.js', name:'the browser ToolsEngine starts writes nothing under the configuration folder of the environment it was started in', reason:'XDG_CONFIG_HOME is a Linux convention' };
+  const emit = (r=row, omitted=-1) => '# File: '+r.file+'\nok 1 - '+r.name+' # SKIP '+r.reason+'\n'+win.REQUIRED_BROWSER_SUCCESSES.filter((_,i)=>i!==omitted).map((name,i)=>'ok '+(i+2)+' - '+name).join('\n')+'\n'+summary(7,6,0,1);
+  assert.equal(win.judgeTestRun({status:0,output:emit()}).ok,true);
+  assert.equal(linux.judgeTestRun({status:0,output:emit()}).ok,false);
+  for (const changed of [{...row,file:'tests/browser.integration.test.js'},{...row,name:row.name+' altered'},{...row,reason:row.reason+' extra'},{...row,reason:'unknown reason'}]) {
+    assert.equal(win.judgeTestRun({status:0,output:emit(changed)}).ok,false);
+    assert.equal(win.unrecognisedBrowserSkips(emit(changed)).length,1);
+  }
+  for (let i=0;i<win.REQUIRED_BROWSER_SUCCESSES.length;i++) {
+    const result=win.judgeTestRun({status:0,output:emit(row,i)});
+    assert.equal(result.ok,false);assert.match(result.reason,/Required browser tests did not pass/);
+  }
+});
+
+test('the Firefox release check cannot be omitted on Linux or skipped under an altered platform identity', () => {
+  const raw = fs.readFileSync(new URL('../tools/test-gate.js', import.meta.url), 'utf8');
+  const pure = raw.slice(raw.indexOf('export const BROWSER_TESTS_DID_NOT_RUN'), raw.indexOf('// Run every test file sequentially')).replace(/^export /gm, '');
+  const load = platform => vm.runInNewContext(pure + ';({judgeTestRun,REQUIRED_BROWSER_SUCCESSES,FIREFOX_LIVE_TEST})', {process:{platform}});
+  const linux=load('linux'),win=load('win32');
+  const evidence=win.REQUIRED_BROWSER_SUCCESSES.map((name,index)=>`ok ${index+2} - ${name}`).join('\n');
+  const row={file:'tests/firefox-live.linux.test.js',name:win.FIREFOX_LIVE_TEST,reason:'Firefox mode requires Linux'};
+  const output=r=>`# File: ${r.file}\nok 1 - ${r.name} # SKIP ${r.reason}\n${evidence}\n${summary(7,6,0,1)}`;
+  assert.equal(win.judgeTestRun({status:0,output:output(row)}).ok,true);
+  assert.equal(linux.judgeTestRun({status:0,output:output(row)}).ok,false);
+  assert.equal(linux.judgeTestRun({status:0,output:evidence+'\n'+summary(6,6,0,0)}).ok,false);
+  for(const changed of [{...row,file:'tests/browser.integration.test.js'},{...row,name:row.name+' altered'},{...row,reason:row.reason+' extra'}])
+    assert.equal(win.judgeTestRun({status:0,output:output(changed)}).ok,false);
 });

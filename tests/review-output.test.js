@@ -13,7 +13,7 @@ test('R1-output profiles cannot overlap implicit artifacts or runtime in either 
   assert.deepEqual(await fs.readdir(root),[],`a refused --profile-dir ${rel} created its folders`);
  }
  // Through a link to the workspace, the refusal also comes before anything is created.
- const linked=path.join(os.tmpdir(),`out-link-${process.pid}`);await fs.symlink(root,linked,'dir');t.after(()=>fs.rm(linked,{force:true}));
+ const linked=path.join(os.tmpdir(),`out-link-${process.pid}`);await fs.symlink(root,linked,process.platform==='win32'?'junction':'dir');t.after(()=>fs.rm(linked,{force:true}));
  await assert.rejects(parseConfig(['--workspace',root,'--profile-dir',path.join(linked,'artifacts','toolsengine','profile')]),/profile.*overlap|links or junctions/i);
  assert.deepEqual(await fs.readdir(root),[]);
  const engine=await createBrowserBridge({workspace:root,profileDir:path.join(root,'artifacts','toolsengine')}).then(b=>{b.close();return b;},e=>e);

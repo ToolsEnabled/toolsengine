@@ -25,7 +25,7 @@ assert.ok(packed.files.find(f => f.path === 'bin/toolsengine.js').mode & 0o111, 
 // may name a person's course, account or site, or the internal tool list.
 const internal = /canvas|homework|\bHW\d|coursework|elearn\.|\.ucr\.|duo\.|mechanics-lab|\ba_ledger\.|\bagent\.spawn\b|\bpurchase\.|owner_forms/i;
 for (const file of packed.files) {
-  if (!/\.(?:md|json|js|cjs|ps1)$|^(?:LICENSE|NOTICE)$/.test(file.path)) continue;
+  if (!/\.(?:md|json|js|cjs|ps1|py)$|^(?:LICENSE|NOTICE)$/.test(file.path)) continue;
   const found = (await fs.readFile(file.path, 'utf8')).match(internal);
   assert.equal(found, null, `Internal material in the archive: ${file.path} contains "${found?.[0]}"`);
 }

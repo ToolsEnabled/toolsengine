@@ -70,7 +70,9 @@ test('short directories left by a server that is gone are removed; those of a li
     assert.deepEqual(await removeAbandonedShortTemps(path.join(base, 'does-not-exist'), 'browser-sockets-'), []);
   });
 
-test('an installed Chrome or Edge starts in a workspace with a long path, and its short directory is removed again',
+test(process.platform === 'win32'
+  ? 'an installed Chrome or Edge starts in a long Windows workspace and its temporary profile is cleaned without Unix socket directories'
+  : 'an installed Chrome or Edge starts in a workspace with a long path, and its short directory is removed again',
   { skip: channel ? false : 'needs an installed Chrome or Edge on Linux, or TOOLSENGINE_TEST_CHANNEL', timeout: 120000 }, async t => {
     const base = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'toolsengine-long-path-')));
     const workspace = path.join(base, 'a-folder-with-a-fairly-long-name', 'and-another-one-inside-it', 'workspace');
@@ -79,10 +81,13 @@ test('an installed Chrome or Edge starts in a workspace with a long path, and it
     // Left behind by a server that was killed: a socket directory whose
     // process is gone. One of a living process (this test's) stays.
     const runtimeTemp = path.join(workspace, '.toolsengine-runtime', 'tmp');
+    const windows = process.platform === 'win32';
     const ended = spawnSync(process.execPath, ['-e', '']).pid;
     const abandoned = `browser-sockets-${ended}-Ab12Cd`;
     const living = `browser-sockets-${process.pid}-Ab12Cd`;
     for (const name of [abandoned, living]) await fs.mkdir(path.join(runtimeTemp, name), { recursive: true });
+    if (windows) for (const name of [abandoned, living])
+      await fs.writeFile(path.join(runtimeTemp, name, 'fixture.txt'), `Unrelated Windows fixture: ${name}\n`);
     const transport = new StdioClientTransport({ command: process.execPath,
       args: [process.env.TOOLSENGINE_TEST_ENTRY || fileURLToPath(new URL('../bin/toolsengine.js', import.meta.url)), '--workspace', workspace, '--headless', '--browser-channel', channel],
       cwd: workspace, stderr: 'pipe' });
@@ -95,6 +100,12 @@ test('an installed Chrome or Edge starts in a workspace with a long path, and it
     const serverPid = transport.pid;
     assert.ok(Number.isInteger(serverPid));
     const shortDirectories = async () => (await fs.readdir(path.join(workspace,'.toolsengine-runtime','tmp')).catch(() => [])).filter(name => name.startsWith(`browser-sockets-${serverPid}-`));
+    const profileDirectories = async () => (await fs.readdir(runtimeTemp)).filter(name => name.startsWith('playwright_chromiumdev_profile-'));
+    const assertWindowsInertDirectories = async () => {
+      assert.deepEqual((await fs.readdir(runtimeTemp)).filter(name => name.startsWith('browser-sockets-')).sort(), [abandoned, living].sort(), 'Windows neither creates nor sweeps Unix socket directories');
+      for (const name of [abandoned, living])
+        assert.equal(await fs.readFile(path.join(runtimeTemp, name, 'fixture.txt'), 'utf8'), `Unrelated Windows fixture: ${name}\n`, 'unrelated directory payloads are preserved');
+    };
     const text = result => (result.content || []).filter(part => part.type === 'text').map(part => part.text).join('\n');
 
     const opened = await client.callTool({ name: 'browser.navigate', arguments: { url: 'about:blank' } });
@@ -105,19 +116,36 @@ test('an installed Chrome or Edge starts in a workspace with a long path, and it
     const kept = await fs.readdir(path.join(workspace, '.toolsengine-runtime', 'tmp'));
     assert.ok(kept.some(name => name.startsWith('playwright_chromiumdev_profile-')), `the browser profile must stay in the workspace; found ${kept.join(', ')}`);
     const short = await shortDirectories();
-    assert.equal(short.length, 1, 'one short private directory while the browser runs');
-    // The abandoned directory was removed when this server made its own; the living one was kept.
-    assert.deepEqual(kept.filter(name => name.startsWith('browser-sockets-') && !name.startsWith(`browser-sockets-${serverPid}-`)).sort(), [living]);
-    assert.ok(!(await fs.readdir(path.join(workspace,'.toolsengine-runtime','tmp',short[0]))).some(name => name.startsWith('playwright_chromiumdev_profile-')), 'and the profile must not be in the short directory');
+    if (windows) {
+      assert.deepEqual(short, [], 'Windows does not need a short Unix socket directory');
+      await assertWindowsInertDirectories();
+    } else {
+      assert.equal(short.length, 1, 'one short private directory while the browser runs');
+      // The abandoned directory was removed when this server made its own; the living one was kept.
+      assert.deepEqual(kept.filter(name => name.startsWith('browser-sockets-') && !name.startsWith(`browser-sockets-${serverPid}-`)).sort(), [living]);
+      assert.ok(!(await fs.readdir(path.join(workspace,'.toolsengine-runtime','tmp',short[0]))).some(name => name.startsWith('playwright_chromiumdev_profile-')), 'and the profile must not be in the short directory');
+    }
 
     // Closing the browser removes it; the next call makes a new one.
     assert.notEqual((await client.callTool({ name: 'browser.close', arguments: {} })).isError, true);
     assert.deepEqual(await shortDirectories(), []);
+    if (windows) {
+      assert.deepEqual(await profileDirectories(), [], 'closing the Windows browser removes its temporary profile');
+      await assertWindowsInertDirectories();
+    }
     assert.notEqual((await client.callTool({ name: 'browser.navigate', arguments: { url: 'about:blank' } })).isError, true);
-    assert.equal((await shortDirectories()).length, 1);
+    if (windows) {
+      assert.deepEqual(await shortDirectories(), []);
+      assert.ok((await profileDirectories()).length >= 1, 'reopening creates a temporary profile in the workspace');
+      await assertWindowsInertDirectories();
+    } else assert.equal((await shortDirectories()).length, 1);
 
     // So does stopping the server.
     await client.close();
     closed = true;
     assert.deepEqual(await shortDirectories(), []);
+    if (windows) {
+      assert.deepEqual(await profileDirectories(), [], 'stopping the Windows server removes its temporary profile');
+      await assertWindowsInertDirectories();
+    }
   });

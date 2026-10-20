@@ -9,3 +9,17 @@ Requested project files persist until you remove them. Other explicit ToolsEngin
 MIT LICENSE governs this source; no separate hosted service terms or product account apply. The public website terms are not claimed to cover this plugin. Questions: support@toolsenabled.ai.
 
 The Codex plugin forwards TOOLSENGINE_CODEX_WORKSPACE and TOOLSENGINE_CODEX_RUNTIME. The latter selects a durable runtime folder outside the disposable Codex plugin cache; it holds source and npm dependencies until you delete it. Startup checks matching source/lock bytes and never downloads dependencies.
+
+The optional standalone Linux `--firefox-hidden` MCP mode creates a separate
+private profile and an authenticated private display. Startup never imports
+the everyday Firefox profile. An explicit user-requested transfer can copy local
+saved logins, keys and cookies into the dedicated profile, replacing its old login
+state. Credential values are never returned by that tool; the local copies remain
+until the dedicated profile is removed. Fleet settings can disable transfer.
+The OpenAI plugin entry always selects no-browser mode and cannot offer or
+dispatch this transfer tool. Observations in standalone Firefox mode
+are returned to the client without automatic page-snapshot files. Firefox keeps
+its own downloads and sign-ins, outside the Chromium artifact quotas, until you
+close its owned browser and remove its dedicated profile. Closing the MCP
+connection detaches the helper and preserves that browser/profile for reuse.
+See [private Firefox](docs/hidden-firefox.md) for prerequisites and limitations.

@@ -119,20 +119,32 @@ test('a browser that cannot set its sandbox up is reported in plain words: which
 // workspace path is part of the profile directory each of them is given: the
 // temporary profile lies under .toolsengine-runtime, and a dedicated profile
 // is named by its own folder.
+// Only roots returned by this fixture's own mkdtemp/realpath calls may select WMI rows.
+const ownBrowserScopes = new Set();
+function windowsFixtureFilter(marker, scopes = ownBrowserScopes) {
+  if (!path.win32.isAbsolute(marker) || /[\x00-\x1f\x7f]/.test(marker)) throw new Error('Plain absolute own browser fixture marker required');
+  const owned = [...scopes].some(root => { const rel = path.win32.relative(root, marker); return rel !== '' && !rel.startsWith('..\\') && rel !== '..' && !path.win32.isAbsolute(rel); });
+  if (!owned) throw new Error('Only a registered fresh fixture scope may select browser rows');
+  // WQL LIKE meta characters are literals in bracket sets; WQL string quotes/backslashes use backslash escapes.
+  const literal = [...marker].map(c => ['%', '_', '['].includes(c) ? '[' + c + ']' : c).join('').replace(/[\\'"]/g, c => '\\' + c);
+  return "(Name='chrome.exe' OR Name='msedge.exe' OR Name='chrome-headless-shell.exe') AND CommandLine LIKE '%" + literal + "%'";
+}
 function browserCommandLines(workspace, marker = path.join(workspace, '.toolsengine-runtime')) {
   if (!windows) {
     return readdirSync('/proc').filter(name => /^\d+$/.test(name)).map(pid => {
       try { return readFileSync(`/proc/${pid}/cmdline`, 'utf8').split('\0').join(' '); } catch { return ''; }
     }).filter(line => line.includes(marker));
   }
-  const script = `Get-CimInstance Win32_Process -Filter "Name='chrome.exe' OR Name='msedge.exe' OR Name='chrome-headless-shell.exe'" | ForEach-Object { $_.CommandLine }`;
-  const result = spawnSync(path.join(process.env.SystemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'), ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', script], { encoding: 'utf8', timeout: 60000, windowsHide: true });
+  const request = Buffer.from(JSON.stringify({ filter: windowsFixtureFilter(marker) }), 'utf8').toString('base64');
+  const script = `[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false); $ErrorActionPreference='Stop'; $request=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${request}'))|ConvertFrom-Json; Get-CimInstance Win32_Process -Filter ([string]$request.filter) -Property CommandLine | ForEach-Object { $_.CommandLine }`;
+  const result = spawnSync(path.join(process.env.SystemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'), ['-NoLogo', '-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')], { encoding: 'utf8', timeout: 60000, windowsHide: true });
   assert.equal(result.status, 0, result.stderr);
   return result.stdout.split(/\r?\n/).filter(line => line.toLowerCase().includes(marker.toLowerCase()));
 }
 
 async function startServer(t, extraArgs) {
   const workspace = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'toolsengine-sandbox-')));
+  ownBrowserScopes.add(workspace);
   const transport = new StdioClientTransport({ command: process.execPath,
     args: [process.env.TOOLSENGINE_TEST_ENTRY || fileURLToPath(new URL('../bin/toolsengine.js', import.meta.url)), '--workspace', workspace, '--headless', ...extraArgs],
     cwd: workspace, stderr: 'pipe' });
@@ -174,6 +186,7 @@ test('an installed Chrome or Edge is started sandboxed; --no-browser-sandbox is 
 test('a browser with a dedicated profile (--profile-dir) is started sandboxed as well, and only --no-browser-sandbox starts it without',
   { skip: installedChannel ? false : 'needs an installed Chrome or Edge, or TOOLSENGINE_TEST_CHANNEL', timeout: 240000 }, async t => {
     const profiles = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'toolsengine-sandbox-profile-')));
+    ownBrowserScopes.add(profiles);
     const start = async (name, extraArgs) => {
       const profile = path.join(profiles, name);
       const server = await startServer(t, ['--browser-channel', installedChannel, '--profile-dir', profile, ...extraArgs]);

@@ -8,7 +8,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import { PassThrough, Writable } from 'node:stream';
-import { userInfo } from 'node:os';
+import { userInfo, tmpdir } from 'node:os';
 import { createAccessibilityDesktopAdapter } from '../native/accessibility-desktop.cjs';
 
 const helperPath = new URL('../native/accessibility-desktop.ps1', import.meta.url);
@@ -93,7 +93,9 @@ test('adapter passes a helper refusal on with its reason, and drops anything tha
 function runHelper(line) {
   const windowsRoot = process.env.SystemRoot;
   const home = userInfo().homedir;
-  const temp = path.join(home, 'AppData', 'Local', 'Temp');
+  // Honor the test caller's effective native TEMP instead of deriving another account-home path.
+  const temp = tmpdir();
+  assert.ok(path.isAbsolute(temp), 'Absolute helper temporary directory required');
   const result = spawnSync(path.join(windowsRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'),
     ['-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path.join(import.meta.dirname, '..', 'native', 'accessibility-desktop.ps1')],
     { input: line + '\n', encoding: 'utf8', timeout: 60000, windowsHide: true,
