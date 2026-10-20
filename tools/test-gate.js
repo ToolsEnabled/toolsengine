@@ -59,7 +59,13 @@ export function unrecognisedBrowserSkips(text) {
     const skip = /^\s*ok \d+ - (.*?) # SKIP ?(.*)$/.exec(line);
     if (!skip || !BROWSER_TEST_FILES.includes(file)) continue;
     const reason = skip[2].trim();
-    if (!KNOWN_BROWSER_SKIPS.some(words => reason.startsWith(words))) found.push({ file, name: skip[1].trim(), reason });
+    // This test proves a Linux-only XDG convention, not a missing browser.
+    // Admit only its exact Windows row; every other unknown skip still refuses.
+    const xdgPlatformSkip = process.platform === 'win32'
+      && file === 'tests/browser-modes.integration.test.js'
+      && skip[1].trim() === 'the browser ToolsEngine starts writes nothing under the configuration folder of the environment it was started in'
+      && reason === 'XDG_CONFIG_HOME is a Linux convention';
+    if (!xdgPlatformSkip && !KNOWN_BROWSER_SKIPS.some(words => reason.startsWith(words))) found.push({ file, name: skip[1].trim(), reason });
   }
   return found;
 }
