@@ -383,14 +383,15 @@ test('the real extension stdio handshake offers only attached tools without open
   const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
   const { StdioClientTransport } = await import('@modelcontextprotocol/sdk/client/stdio.js');
   const { fileURLToPath } = await import('node:url');
-  const dir = await workspace(t);
   const client = new Client({ name: 'extension-handshake-fixture', version: '1' });
+  // Close the MCP child before removing its Windows current directory.
+  t.after(() => client.close());
+  const dir = await workspace(t);
   const transport = new StdioClientTransport({ command: process.execPath,
     args: [fileURLToPath(new URL('../bin/toolsengine.js', import.meta.url)), '--workspace', dir, '--browser-extension'],
     cwd: dir, env: { ...process.env }, stderr: 'pipe' });
   let diagnostics = '';
   transport.stderr?.on('data', chunk => { diagnostics += chunk; });
-  t.after(() => client.close());
   await client.connect(transport);
   const { tools } = await client.listTools();
   assert.equal(tools.length, 26);
