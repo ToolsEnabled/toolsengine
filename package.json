@@ -1,6 +1,6 @@
 {
   "name": "@toolsenabled/toolsengine",
-  "version": "0.1.9-rc.1",
+  "version": "0.2.0-alpha.1",
   "description": "Portable, curated ToolsEngine capabilities over stdio MCP.",
   "type": "module",
   "license": "MIT",

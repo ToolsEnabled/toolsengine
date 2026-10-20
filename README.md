@@ -2,6 +2,8 @@
 
 Vendor distribution boundaries and current review status: [docs/PLUGIN-POLICY.md](docs/PLUGIN-POLICY.md).
 
+Standalone MCP development candidate: **0.2.0-alpha.1**. No publication or plugin release is implied.
+
 Optional hidden Chrome signed-in session transfer for Linux and native Windows is documented in
 [Hidden Chrome](docs/hidden-chrome.md). Browser actions use a separate headless
 Chrome; importing supported site state requires an explicit user request and
@@ -114,7 +116,7 @@ npm install -g ./toolsenabled-toolsengine-VERSION.tgz
 toolsengine --version
 ```
 
-`toolsengine --version` prints `ToolsEngine 0.1.9-rc.1`. Start the server with an
+`toolsengine --version` prints `ToolsEngine 0.2.0-alpha.1`. Start the server with an
 existing absolute folder as the workspace and the installed browser by name:
 
 ```
