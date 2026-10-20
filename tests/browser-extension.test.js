@@ -17,7 +17,7 @@ import { ownBrowserSkipped } from './support/browser-under-test.js';
 // Chrome before it opens its connect page, although the fixture stops the
 // browser from starting. Without Chrome these tests could only time out.
 const chromeInstalled = (() => { try { return Boolean(channelExecutable('chrome')); } catch { return false; } })();
-const relaySkipped = chromeInstalled ? false
+const relaySkipped = chromeInstalled || process.platform === 'win32' ? false
   : `${'needs an installed Google Chrome'}: none was found where ToolsEngine looks for it, and the extension relay looks it up before it opens its connect page (nothing is started)`;
 
 async function workspace(t) {
@@ -229,6 +229,14 @@ async function pendingRelay(t, waitMs = 50) {
     : path.join(fixtureHome, '.config', 'google-chrome');
   for (const name of ['Default', 'Profile 2', 'Profile 7'])
     await fs.mkdir(path.join(userDataDir, name, 'Extensions', 'mmlmfjhmonkocbjadbfplnigmagldckm'), { recursive: true });
+  if (process.platform === 'win32') {
+    // The fixture changes the account home before the real dependency loads.
+    // A per-user Chrome therefore needs an inert executable entry in that
+    // synthetic account too. spawn is intercepted below, so it never runs.
+    const executable = path.join(fixtureHome, 'AppData', 'Local', 'Google', 'Chrome', 'Application', 'chrome.exe');
+    await fs.mkdir(path.dirname(executable), { recursive: true });
+    await fs.writeFile(executable, 'inert fixture; never executable');
+  }
   await fs.writeFile(path.join(userDataDir, 'Local State'), JSON.stringify({ profile: { last_used: 'Profile 7' } }));
   let began;
   const started = new Promise(resolve => { began = resolve; });

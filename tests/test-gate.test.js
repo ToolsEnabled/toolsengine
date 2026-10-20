@@ -15,12 +15,12 @@ test('the build goes ahead only after a test run in which everything passed and 
   // Everything passed. A test skipped for the system it is on does not count against the tree.
   const evidence = gate.REQUIRED_BROWSER_SUCCESSES.map((name,index)=>`ok ${index+4} - ${name}`).join('\n')+'\n';
   const good = judgeTestRun({ status: 0, output: evidence + `TAP version 13\nok 1 - one\nok 2 - two # SKIP only Windows starts clients through cmd.exe\nok 3 - three # SKIP set TOOLSENGINE_DESKTOP_LIVE=1 on Windows to open test windows\n${summary(3, 1, 0, 2)}` });
-  assert.deepEqual(good, { ok: true, counts: { tests: 3, pass: 1, fail: 0, skipped: 2 } });
+  assert.deepEqual(good, { ok: true, counts: { tests: 3, pass: 1, fail: 0, skipped: 2, cancelled: 0, todo: 0 } });
 
   // A failing test: not built, and the reason names it.
   const red = judgeTestRun({ status: 1, output: `TAP version 13\nok 1 - one\nnot ok 2 - the thing that broke\n  ---\n  error: 'x'\n  ...\n${summary(2, 1, 1, 0)}` });
   assert.equal(red.ok, false);
-  assert.match(red.reason, /^1 of 2 tests failed: the thing that broke\.$/);
+  assert.match(red.reason, /^1 failed, 0 cancelled and 0 TODO out of 2 tests: the thing that broke\.$/);
   // A run that ended badly without a failed test in its count (a crash on the way out) is not a pass either.
   assert.equal(judgeTestRun({ status: 1, output: summary(2, 2, 0, 0) }).ok, false);
   assert.equal(judgeTestRun({ status: null, output: summary(2, 2, 0, 0) }).ok, false);
@@ -39,6 +39,17 @@ test('the build goes ahead only after a test run in which everything passed and 
     assert.match(skipped.reason, /^2 browser tests did not run on this machine\. /);
     assert.match(skipped.reason, /TOOLSENGINE_TEST_BROWSER/);
   }
+});
+
+test('release evidence rejects cancellation, contradictory totals and Windows-path hidden skips', () => {
+  const evidence=gate.REQUIRED_BROWSER_SUCCESSES.map((name,index)=>`ok ${index+1} - ${name}`).join('\n')+'\n';
+  const count=gate.REQUIRED_BROWSER_SUCCESSES.length;
+  for(const text of [
+    summary(count+1,count,0,0).replace('# cancelled 0','# cancelled 1'),
+    summary(count+1,count,0,0),
+    'not ok 99 - interrupted\n'+summary(count,count,0,0),
+    '# File: tests\\browser.integration.test.js\nok 99 - critical check # SKIP unknown Windows reason\n'+summary(count+1,count,0,1),
+  ]) assert.equal(gate.judgeTestRun({status:0,output:evidence+text}).ok,false);
 });
 
 test('the skip reasons the build looks for are the ones the browser tests give, and the build has no way around its tests', () => {

@@ -15,7 +15,7 @@ An explicit Windows desktop option adds four tools for existing signed-in apps.
 
 ## Codex plugin
 
-Version 0.1.8 provides a self-distributed local file/public-web plugin for Codex. See [Codex setup and limits](docs/CODEX.md) and [privacy](PRIVACY.md). The standard MCP connection below also supports explicit browser modes.
+Version 0.1.9-rc.1 provides a self-distributed local file/public-web plugin for Codex. See [Codex setup and limits](docs/CODEX.md) and [privacy](PRIVACY.md). The standard MCP connection below also supports explicit browser modes.
 
 ## Install
 
@@ -109,7 +109,7 @@ npm install -g ./toolsenabled-toolsengine-VERSION.tgz
 toolsengine --version
 ```
 
-`toolsengine --version` prints `ToolsEngine 0.1.8`. Start the server with an
+`toolsengine --version` prints `ToolsEngine 0.1.9-rc.1`. Start the server with an
 existing absolute folder as the workspace and the installed browser by name:
 
 ```
@@ -1232,3 +1232,9 @@ Compared with 0.1.3-rc.1:
 ### Windows foreground refusals
 
 See [Windows focus recovery](docs/windows-focus-recovery.md) for bounded activation, safe refusal diagnostics, and recovery when an application rejects focus. Activation remains dependent on Windows and the selected application.
+
+## Native Windows release qualification
+
+A Windows archive built by `tools/build-release.js` is a candidate until it passes native qualification. On a signed-in Windows desktop, run `node tools/qualify-windows.js EXTRACTED_RELEASE NEW_EVIDENCE_FOLDER` from the matching source checkout. The tool checks every release file, requires matching source runtime bytes, installs to an isolated private folder, drives dedicated native test windows through the installed MCP server, and removes the installation. Its receipt binds the release manifest hash, source commit and test hashes. Any skipped, cancelled, missing or failed desktop test prevents the receipt. Publish the receipt with the Windows archive only after the complete native test suite and browser tests also pass.
+
+The OpenAI plugin profile excludes hidden state, credential paths and protected instruction/configuration files from its project file tools. These path rules are not a general detector for sensitive content placed in ordinary files. They do not change standalone MCP file access.

@@ -133,7 +133,9 @@ test('explicit CDP attachment lists tabs and disconnects without closing the bro
   // given a short one in that case, as the server gives its own browser.
   const fixtureSocket = process.platform==='linux' ? await workspaceSocketTemp(root) : null;
   const fixtureTemp=fixtureSocket?.envPath;
-  const child = spawn(executable, ['--headless', '--no-sandbox', '--remote-debugging-port=0', '--no-first-run', '--no-default-browser-check', `--user-data-dir=${path.join(root, 'test-profile')}`, 'about:blank'],
+  // Isolate this synthetic fixture from the desktop password store, as
+  // Playwright does for browsers it launches itself.
+  const child = spawn(executable, ['--headless', '--no-sandbox', '--password-store=basic', '--use-mock-keychain', '--remote-debugging-port=0', '--no-first-run', '--no-default-browser-check', `--user-data-dir=${path.join(root, 'test-profile')}`, 'about:blank'],
     { stdio: ['ignore', 'ignore', 'pipe'], windowsHide: true, ...(fixtureTemp ? { env: { ...process.env, TMPDIR: fixtureTemp } } : {}) });
   let bridge;
   let fixtureOwner;
@@ -144,6 +146,15 @@ test('explicit CDP attachment lists tabs and disconnects without closing the bro
       catch (error) { errors.push(new Error(`${label}: ${error.message}`, { cause: error })); }
     };
     await attempt('Bridge cleanup', () => boundedCleanup(bridge?.close(), 'Bridge cleanup'));
+    // This test owns the directly spawned browser. A CDP client's close()
+    // only disconnects; killing its root on Windows can leave descendants
+    // holding stderr open, so the ChildProcess close event never arrives.
+    // Ask this fixture's browser to shut down its whole tree first.
+    await attempt('Fixture browser shutdown', async () => {
+      if (!fixtureOwner?.isConnected()) return;
+      const session = await fixtureOwner.newBrowserCDPSession();
+      await boundedCleanup(session.send('Browser.close'), 'Fixture browser shutdown');
+    });
     await attempt('Fixture owner cleanup', () => boundedCleanup(fixtureOwner?.close(), 'Fixture owner cleanup'));
     await attempt('Fixture process cleanup', () => stopFixtureProcess(child));
     if (fixtureSocket) await attempt('Fixture temporary directory cleanup', () => fixtureSocket.close());

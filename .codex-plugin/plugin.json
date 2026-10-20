@@ -1,6 +1,6 @@
 {
   "name": "toolsengine",
-  "version": "0.1.8",
+  "version": "0.1.9-rc.1",
   "description": "Local files and public web",
   "skills": "./codex-skills/",
   "mcpServers": "./.codex-plugin/mcp.json",

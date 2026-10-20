@@ -158,7 +158,9 @@ test('in an attached browser a download is left to that browser: it is saved whe
   const fixtureSocket = process.platform==='linux' ? await workspaceSocketTemp(root) : null;
   const shortTemp=fixtureSocket?.envPath;
   const running = spawn(process.env.TOOLSENGINE_TEST_BROWSER || chromium.executablePath(),
-    ['--headless', '--no-sandbox', '--remote-debugging-port=0', '--no-first-run', '--no-default-browser-check', `--user-data-dir=${profile}`, 'about:blank'],
+    // Match Playwright's fixture defaults: this empty synthetic profile must
+    // not wait for the desktop's real password store before navigation.
+    ['--headless', '--no-sandbox', '--password-store=basic', '--use-mock-keychain', '--remote-debugging-port=0', '--no-first-run', '--no-default-browser-check', `--user-data-dir=${profile}`, 'about:blank'],
     // The home is the test's folder too: should the setting above not be read, the file still lands inside it.
     { stdio: ['ignore', 'ignore', 'pipe'], windowsHide: true, env: { ...process.env, HOME: root, ...(shortTemp ? { TMPDIR: shortTemp } : {}) } });
   let server;

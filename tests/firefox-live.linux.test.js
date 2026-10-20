@@ -39,7 +39,7 @@ test('hidden Firefox types and clicks on its authenticated private display witho
   const call=async(name,args={})=>(await tools.get(name).handler(args)).content[0].text;
   await call('browser.tabs',{action:'new',url:`http://127.0.0.1:${site.address().port}`});
   let snapshot=await call('browser.snapshot',{depth:30});
-  const field=/entry "Note"[^\n]*\[ref=([^\]]+)\]/.exec(snapshot)?.[1];assert.ok(field);
+  const field=/entry "Note"[^\n]*\[ref=([^\]]+)\]/.exec(snapshot)?.[1];assert.ok(field, snapshot);
   await call('browser.type',{ref:field,text:'verified private typing'});
   snapshot=await call('browser.snapshot',{depth:30});assert.match(snapshot,/value="verified private typing"/);
   const button=/push button "Apply"[^\n]*\[ref=([^\]]+)\]/.exec(snapshot)?.[1];assert.ok(button);
