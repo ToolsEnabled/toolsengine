@@ -118,3 +118,16 @@ test('the Firefox release check cannot be omitted on Linux or skipped under an a
   for(const changed of [{...row,file:'tests/browser.integration.test.js'},{...row,name:row.name+' altered'},{...row,reason:row.reason+' extra'}])
     assert.equal(win.judgeTestRun({status:0,output:output(changed)}).ok,false);
 });
+
+test('native Chrome release evidence requires the actual approved extension workflow', () => {
+  const raw = fs.readFileSync(new URL('../tools/test-gate.js', import.meta.url), 'utf8');
+  const pure = raw.slice(raw.indexOf('export const BROWSER_TESTS_DID_NOT_RUN'), raw.indexOf('// Run every test file sequentially')).replace(/^export /gm, '');
+  for (const platform of ['linux', 'win32']) {
+    const model = vm.runInNewContext(pure + ';({judgeTestRun,REQUIRED_BROWSER_SUCCESSES,CHROME_LIVE_TEST})', {process:{platform}});
+    const emit = names => names.map((name, i) => 'ok ' + (i + 1) + ' - ' + name).join('\n') + '\n' + summary(names.length, names.length, 0, 0);
+    assert.equal(model.judgeTestRun({ status: 0, output: emit(model.REQUIRED_BROWSER_SUCCESSES) }).ok, true);
+    const partial = model.REQUIRED_BROWSER_SUCCESSES.filter(name => name !== model.CHROME_LIVE_TEST);
+    partial.push(model.CHROME_LIVE_TEST.replace(' through its approved extension', ''));
+    assert.equal(model.judgeTestRun({ status: 0, output: emit(partial) }).ok, false);
+  }
+});

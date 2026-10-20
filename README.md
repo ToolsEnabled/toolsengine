@@ -2,6 +2,11 @@
 
 Vendor distribution boundaries and current review status: [docs/PLUGIN-POLICY.md](docs/PLUGIN-POLICY.md).
 
+Optional hidden Chrome signed-in session transfer for Linux and native Windows is documented in
+[Hidden Chrome](docs/hidden-chrome.md). Browser actions use a separate headless
+Chrome; importing supported site state requires an explicit user request and
+Chrome’s approved Playwright Extension connection.
+
 Optional Linux Firefox UI control is documented in
 [Private Firefox on Linux](docs/hidden-firefox.md). It uses an authenticated
 private display and a separate profile, preserves the browser sandbox, and

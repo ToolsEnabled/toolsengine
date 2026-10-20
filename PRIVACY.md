@@ -23,3 +23,5 @@ its own downloads and sign-ins, outside the Chromium artifact quotas, until you
 close its owned browser and remove its dedicated profile. Closing the MCP
 connection detaches the helper and preserves that browser/profile for reuse.
 See [private Firefox](docs/hidden-firefox.md) for prerequisites and limitations.
+
+Hidden Chrome mode (--chrome-hidden) supports explicit origin-scoped session transfer through the installed Chrome’s approved Playwright Extension connection. Transfer reads browser-decrypted cookies and supported site storage in memory, returns counts only, and disconnects the source. Its connection setup may open a visible approval page; ordinary browser work remains headless. The separate Chrome profile persists cookies, localStorage and JSON-compatible IndexedDB locally; imported sessionStorage lasts only for the current hidden browser. Saved passwords and device-bound authentication are excluded. See docs/hidden-chrome.md for boundaries. The OpenAI plugin has no browser or transfer tools.

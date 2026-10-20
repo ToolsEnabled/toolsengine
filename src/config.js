@@ -102,6 +102,14 @@ async function plainDirectory(value, { create = false } = {}) {
   return await fs.realpath(absolute);
 }
 
+// Sensitive state must never enter inherited Playwright protocol/file logs.
+export function chromeSessionEnvironment(base = process.env) {
+  const env = { ...base };
+  for (const name of Object.keys(env))
+    if (/^(?:DEBUG(?:_.*)?|PWDEBUG.*|PW.*(?:TRACE|DEBUG|LOG).*|PLAYWRIGHT.*(?:TRACE|DEBUG|LOG).*)$/i.test(name)) delete env[name];
+  return env;
+}
+
 export async function parseConfig(args, { env = process.env } = {}) {
   const config = { headless: true, browser: true, browserSandbox: true, allowLocalNetwork: false };
   const values = new Map([
@@ -123,6 +131,7 @@ export async function parseConfig(args, { env = process.env } = {}) {
     else if (arg === '--desktop-left-half') config.desktopLeftHalf = true;
     else if (arg === '--desktop-allow-sign-in') config.desktopAllowSignIn = true;
     else if (arg === '--browser-extension') config.browserExtension = true;
+    else if (arg === '--chrome-hidden') config.chromeHidden = true;
     else if (arg === '--firefox-desktop' || arg === '--firefox-hidden') config.firefoxDesktop = true;
     else if (arg === '--help' || arg === '-h') config.help = true;
     else if (arg === '--version') config.version = true;
@@ -130,8 +139,20 @@ export async function parseConfig(args, { env = process.env } = {}) {
   }
   if (config.help || config.version) return config;
   assertPluginProfile(config);
-  if (!config.browser && (config.profileDir || config.cdpEndpoint || config.browserExtension || config.browserExecutable || config.browserChannel || config.firefoxDesktop))
+  if (!config.browser && (config.profileDir || config.cdpEndpoint || config.browserExtension || config.browserExecutable || config.browserChannel || config.firefoxDesktop || config.chromeHidden))
     throw new Error('--no-browser cannot be combined with browser configuration.');
+  if (config.chromeHidden) {
+    const quiet = chromeSessionEnvironment(env);
+    for (const name of Object.keys(env)) if (!Object.hasOwn(quiet, name)) delete env[name];
+    if (!['linux', 'win32'].includes(process.platform)) throw new Error('--chrome-hidden requires Linux or native Windows.');
+    if (config.headless === false || config.firefoxDesktop || config.cdpEndpoint || config.browserExtension || config.browserExecutable || config.browserChannel || config.desktopProfileRoot || config.browserSandbox === false)
+      throw new Error('Chrome hidden mode requires sandboxed headless Chrome and cannot attach to a visible browser or desktop.');
+    config.headless = true;
+    config.browserChannel = 'chrome';
+    config.profileDir ||= process.platform === 'win32'
+      ? path.join(userInfo().homedir, 'AppData', 'Local', 'ToolsEngine', 'agent-chrome')
+      : path.join(userInfo().homedir, '.local', 'share', 'toolsengine', 'agent-chrome');
+  }
   if (config.firefoxDesktop) {
     if (process.platform !== 'linux') throw new Error('--firefox-hidden currently requires Linux.');
     if (config.profileDir || config.cdpEndpoint || config.browserExtension || config.browserExecutable || config.browserChannel || config.desktopProfileRoot || config.browserSandbox === false)
@@ -195,6 +216,7 @@ export async function parseConfig(args, { env = process.env } = {}) {
     if (await folderContains(intended, config.workspace)) throw new Error('The browser profile must not equal or contain the workspace.');
     await validateBrowserLayout(config.workspace, intended);
     config.profileDir = await plainDirectory(config.profileDir, { create: true });
+    if (process.platform !== 'win32') await fs.chmod(config.profileDir, 0o700);
     if (await folderContains(config.profileDir, config.workspace)) throw new Error('The browser profile must not equal or contain the workspace.');
     await validateBrowserLayout(config.workspace, config.profileDir);
     const marker = path.join(config.profileDir, '.toolsengine-profile');

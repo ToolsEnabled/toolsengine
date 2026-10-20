@@ -26,6 +26,13 @@ export function browserCapabilityStatus(config, enabled) {
     browserAuthenticationVerified: false,
   };
   if (config.firefoxDesktop) return agentBrowserStatus(config);
+  if (config.chromeHidden) return {
+    browserEnabled: true, browserMode: 'chrome-hidden', browserSession: 'dedicated-persistent-profile',
+    browserLaunchState: 'not-probed', headless: true, browserWindowMode: 'headless',
+    browserWindowVisibility: 'not-visible', browserAuthSharing: 'explicit-origin-session-transfer',
+    browserUsesVisibleScreen: false, browserSandbox: true, browserSandboxVerified: false,
+    browserConnectionVerified: false, browserAuthenticationVerified: false,
+  };
   if (config.browserExtension) return {
     browserEnabled: true,
     browserMode: 'attached',
@@ -125,13 +132,15 @@ const BROWSER_INSTRUCTIONS = Object.freeze({
   extension: "The browser tools act in the person's everyday browser, through the Playwright Extension installed there, starting in the tab shared by the extension, with that browser's signed-in sessions: every action there is an action in the person's own browser and accounts. The first browser call opens the extension's connect page in that browser. Without a startup token, it is an approval page: the person chooses a tab and approves each connection; a startup token skips approval. Browser calls wait until the extension connects. Ask the person to approve when approval is required; never try to approve it yourself. Cancelling a browser call or stopping this server disconnects its relay, preserving the person's browser and tabs. Closing the approval page alone leaves the relay waiting.",
   none: 'No browser tools are offered in this connection.',
   firefox: agentFirefoxInstructions(),
+  chrome: "Browser actions operate only in ToolsEngine's separate persistent headless Chrome, using no visible screen. It inherits no sign-ins automatically. Only an explicit user request for browser.transfer_chrome_session can import supported site state via Chrome's approved Playwright Extension. Approval can open a connection page in the source browser; do not approve it yourself. Transfer reads existing shared tabs without navigation or focus, then disconnects. Cookies, localStorage and JSON-compatible IndexedDB persist in the hidden profile; per-tab sessionStorage lasts only for the current hidden browser. Saved passwords, passkeys and device-bound sessions are not transferred. An import does not verify that a site accepts the session. Credentials are never included in the transfer receipt. Fleet can disable transfer. The OpenAI plugin offers no browser or transfer tools.",
+
 });
 // sandbox: false only when the server was started with --no-browser-sandbox.
 // The assistant is then told that its browser has no sandbox: nothing else
 // in the tool list would show it.
 export function serverInstructions({ browser, desktop, sandbox = true, desktopAllowSignIn = false }) {
   if (!Object.hasOwn(BROWSER_INSTRUCTIONS, browser)) throw new Error(`Unknown browser mode: ${browser}`);
-  const ownBrowser = browser === 'temporary' || browser === 'dedicated';
+  const ownBrowser = browser === 'temporary' || browser === 'dedicated' || browser === 'chrome';
   return [
     `ToolsEngine gives this connection a workspace folder of files, a reader for public web pages${browser === 'none' ? '' : ', a browser'}${desktop ? ' and the Windows desktop' : ''}.`,
     BROWSER_INSTRUCTIONS[browser],
@@ -240,7 +249,7 @@ export async function createToolsEngine(config, { makeBrowserBridge = createBrow
   const server = new Server({ name: 'toolsengine', version: VERSION }, {
     capabilities: { tools: {} },
     instructions: serverInstructions({
-      browser: !browser ? 'none' : config.firefoxDesktop ? 'firefox' : config.browserExtension ? 'extension' : config.cdpEndpoint ? 'attached' : config.profileDir ? 'dedicated' : 'temporary',
+      browser: !browser ? 'none' : config.firefoxDesktop ? 'firefox' : config.chromeHidden ? 'chrome' : config.browserExtension ? 'extension' : config.cdpEndpoint ? 'attached' : config.profileDir ? 'dedicated' : 'temporary',
       desktop: desktopTools.length > 0,
       desktopAllowSignIn: config.desktopAllowSignIn === true,
       sandbox: config.browserSandbox !== false,

@@ -10,6 +10,7 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { ListRootsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 export { createArtifactBudget } from './artifacts.js';
 import { createArtifactBudget, ARTIFACT_LIMITS } from './artifacts.js';
+import { readApprovedChromeSession, transferOrigins, sessionReceipt, CHROME_TRANSFER_ERROR } from './chrome-session.js';
 import { randomUUID } from 'node:crypto';
 import { createExtensionWorkerBridge } from './extension-worker.js';
 import { createRequire } from 'node:module';
@@ -433,6 +434,13 @@ export async function workspaceSocketTemp(workspace) {
 export async function createBrowserBridge(config, options = {}) {
   if (config.browserExtension && !options.connectExtension) return createExtensionWorkerBridge(config);
   const { connectExtension = connectThroughExtension } = options;
+  if (config.chromeHidden && (config.headless === false || config.browserSandbox === false || config.cdpEndpoint || config.browserExtension || config.firefoxDesktop || !config.profileDir || config.browserChannel !== 'chrome' || config.browserExecutable))
+    throw new Error('Chrome hidden mode requires its own persistent sandboxed headless installed Chrome.');
+  if (config.chromeHidden) {
+    // Direct library callers may have initialized Playwright before parsing
+    // config. Disable its cached debug namespaces as well as startup variables.
+    createRequire(import.meta.url)('playwright-core/lib/utilsBundle').debug.disable();
+  }
   // Also here, for a caller that does not come through parseConfig.
   refuseRemoteGrid();
   const workspace = await fs.realpath(config.workspace);
@@ -543,6 +551,7 @@ export async function createBrowserBridge(config, options = {}) {
   };
   const openContext = async () => {
     if (activeSignal?.aborted) throw new Error('Browser request cancelled before launch.');
+    if (ownedContext) return ownedContext;
     if (extension) {
       if (!extensionPending) {
         const controller = new AbortController();
@@ -727,7 +736,40 @@ export async function createBrowserBridge(config, options = {}) {
       },
     };
   });
-  return { tools, async waitForDownloads(){await Promise.all([...pendingDownloads]);}, async close() {
+  const applyChromeSession = async state => {
+    // All browser tools still resolve only this owned headless context.
+    if (!config.chromeHidden || attached || config.headless === false || config.browserSandbox === false)
+      throw new Error('Session import requires dedicated sandboxed hidden Chrome.');
+    await stopOperation();
+    try {
+      const context = await openContext();
+      await context.setStorageState({ cookies: state.cookies, origins: state.origins });
+      const marker = '.toolsengine-session-' + randomUUID();
+      await context.addInitScript(({ origins, marker }) => {
+        const state = origins.find(item => item.origin === location.origin);
+        if (!state || sessionStorage.getItem(marker)) return;
+        for (const { name, value } of state.entries) sessionStorage.setItem(name, value);
+        sessionStorage.setItem(marker, '1');
+      }, { origins: state.sessionStorage, marker });
+      return sessionReceipt(state);
+    } catch {
+      throw new Error(CHROME_TRANSFER_ERROR);
+    }
+  };
+  if (config.chromeHidden) tools.push({
+    name: 'browser.transfer_chrome_session', title: 'Transfer an authorized Chrome session into hidden Chrome',
+    description: "Standalone MCP only, after the user's explicit request: ask the installed Chrome's Playwright Extension for a connection, then read cookies, localStorage, JSON-compatible IndexedDB and per-tab sessionStorage for explicitly named HTTP(S) origins. Each origin must already have an open shared source tab; the first shared tab for that origin supplies per-tab storage. Source tabs are never navigated, focused or closed. Approval may open Chrome's connection page once; never approve it yourself. Replaces the hidden browser's previous site storage and closes its tabs, losing unsaved work there. Source Chrome decrypts its own cookies, including on native Windows; encrypted database files are never copied. Hidden Chrome stays headless with a separate persistent profile. Passwords, passkeys, device-bound sign-ins and other profile data are excluded. SessionStorage lasts only until the hidden browser closes; other imported storage persists locally. Sites can reject copied sessions; success is an import receipt, not verified authentication. No credential values are returned. Fleet can disable transfer before source connection. Unavailable through the OpenAI plugin.",
+    inputSchema: { type: 'object', properties: { origins: { type: 'array', minItems: 1, maxItems: 20, uniqueItems: true, items: { type: 'string', minLength: 1, maxLength: 2048 } } }, required: ['origins'], additionalProperties: false },
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
+    sessionTarget: 'hidden-headless', usesVisibleScreen: false,
+    async handler({ origins }, { signal } = {}) {
+      const requested = transferOrigins(origins);
+      const state = await (options.readChromeSession || readApprovedChromeSession)(config, requested, { signal });
+      if (signal?.aborted) throw new Error('Chrome transfer cancelled before hidden-session replacement.');
+      return runBrowserOperation(async () => ({ content: [{ type: 'text', text: JSON.stringify(await applyChromeSession(state)) }] }), { signal, stop: stopOperation });
+    },
+  });
+  return { tools, applyChromeSession, async waitForDownloads(){await Promise.all([...pendingDownloads]);}, async close() {
     const errors = [];
     const attempt = async operation => { try { await operation(); } catch (error) { errors.push(error); } };
     await attempt(stopOperation);
