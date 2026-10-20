@@ -29,8 +29,11 @@ test('Codex package launches no-browser mode and confines actual file calls to s
  const call=(name,arguments_={})=>client.callTool({name,arguments:arguments_});
  const status=JSON.parse((await call('system.status')).content[0].text);
  assert.equal(status.browserEnabled,false);
+ assert.equal(status.distributionProfile,'openai');
  const {tools}=await client.listTools();assert.equal(tools.length,8);
  assert(!tools.some(tool=>tool.name.includes('firefox')||tool.name.startsWith('browser.')));
+ for(const tool of tools) for(const hint of ['readOnlyHint','destructiveHint','openWorldHint']) assert.equal(typeof tool.annotations[hint],'boolean');
+ for(const name of ['desktop.click','browser.tabs','browser.evaluate','system.exec','settings.set']) assert.equal((await call(name,{})).isError,true);
  assert.equal((await call('browser.transfer_firefox_profile',{})).isError,true);
  assert.equal((await call('workspace.write_file',{path:'owned.txt',content:'actual value 42'})).isError,undefined);
  const read=JSON.parse((await call('workspace.read_file',{path:'owned.txt'})).content[0].text);assert.equal(read.content,'actual value 42');
@@ -85,5 +88,6 @@ test('distinct plugin and durable runtime serve an unrelated workspace with actu
  const transport=new StdioClientTransport({command:entry.command,args,cwd:root,stderr:'pipe',env:{...process.env,...forwarded({TOOLSENGINE_CODEX_WORKSPACE:workspace,TOOLSENGINE_CODEX_RUNTIME:runtime})}});
  let stderr='';transport.stderr?.on('data',c=>{stderr+=c;});const client=new Client({name:'two-physical-program-roots',version:'1'});t.after(()=>client.close());await client.connect(transport).catch(error=>{throw new Error(error.message+'; server stderr: '+stderr);});
  const call=(name,arguments_={})=>client.callTool({name,arguments:arguments_});const status=JSON.parse((await call('system.status')).content[0].text);assert.equal(status.workspace,await fs.realpath(workspace));assert.equal(status.browserEnabled,false);
+ assert.equal(status.distributionProfile,'openai');
  assert.equal((await call('workspace.write_file',{path:'boundary.txt',content:'two roots protected'})).isError,undefined);assert.equal(JSON.parse((await call('workspace.read_file',{path:'boundary.txt'})).content[0].text).content,'two roots protected');assert.deepEqual(await fs.readFile(path.join(root,'.codex-plugin/start.mjs')),original);assert.equal(stderr,'');
 });
