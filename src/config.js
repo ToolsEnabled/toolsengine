@@ -122,13 +122,19 @@ export async function parseConfig(args, { env = process.env } = {}) {
     else if (arg === '--desktop-left-half') config.desktopLeftHalf = true;
     else if (arg === '--desktop-allow-sign-in') config.desktopAllowSignIn = true;
     else if (arg === '--browser-extension') config.browserExtension = true;
+    else if (arg === '--firefox-desktop' || arg === '--firefox-hidden') config.firefoxDesktop = true;
     else if (arg === '--help' || arg === '-h') config.help = true;
     else if (arg === '--version') config.version = true;
     else throw new Error(`Unknown option: ${arg}`);
   }
   if (config.help || config.version) return config;
-  if (!config.browser && (config.profileDir || config.cdpEndpoint || config.browserExtension || config.browserExecutable || config.browserChannel))
+  if (!config.browser && (config.profileDir || config.cdpEndpoint || config.browserExtension || config.browserExecutable || config.browserChannel || config.firefoxDesktop))
     throw new Error('--no-browser cannot be combined with browser configuration.');
+  if (config.firefoxDesktop) {
+    if (process.platform !== 'linux') throw new Error('--firefox-hidden currently requires Linux.');
+    if (config.profileDir || config.cdpEndpoint || config.browserExtension || config.browserExecutable || config.browserChannel || config.desktopProfileRoot || config.browserSandbox === false)
+      throw new Error('Firefox hidden mode cannot be combined with another browser mode, a desktop attachment, or a disabled sandbox.');
+  }
   // The sandbox option is about a browser this server starts. With no browser,
   // or with one that is already running, it would only look like a setting.
   if (!config.browserSandbox && (!config.browser || config.cdpEndpoint || config.browserExtension))

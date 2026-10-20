@@ -92,3 +92,18 @@ test('the Windows-only XDG skip has one exact identity and cannot replace requir
     assert.equal(result.ok,false);assert.match(result.reason,/Required browser tests did not pass/);
   }
 });
+
+test('the Firefox release check cannot be omitted on Linux or skipped under an altered platform identity', () => {
+  const raw = fs.readFileSync(new URL('../tools/test-gate.js', import.meta.url), 'utf8');
+  const pure = raw.slice(raw.indexOf('export const BROWSER_TESTS_DID_NOT_RUN'), raw.indexOf('// Run every test file sequentially')).replace(/^export /gm, '');
+  const load = platform => vm.runInNewContext(pure + ';({judgeTestRun,REQUIRED_BROWSER_SUCCESSES,FIREFOX_LIVE_TEST})', {process:{platform}});
+  const linux=load('linux'),win=load('win32');
+  const evidence=win.REQUIRED_BROWSER_SUCCESSES.map((name,index)=>`ok ${index+2} - ${name}`).join('\n');
+  const row={file:'tests/firefox-live.linux.test.js',name:win.FIREFOX_LIVE_TEST,reason:'Firefox mode requires Linux'};
+  const output=r=>`# File: ${r.file}\nok 1 - ${r.name} # SKIP ${r.reason}\n${evidence}\n${summary(7,6,0,1)}`;
+  assert.equal(win.judgeTestRun({status:0,output:output(row)}).ok,true);
+  assert.equal(linux.judgeTestRun({status:0,output:output(row)}).ok,false);
+  assert.equal(linux.judgeTestRun({status:0,output:evidence+'\n'+summary(6,6,0,0)}).ok,false);
+  for(const changed of [{...row,file:'tests/browser.integration.test.js'},{...row,name:row.name+' altered'},{...row,reason:row.reason+' extra'}])
+    assert.equal(win.judgeTestRun({status:0,output:output(changed)}).ok,false);
+});

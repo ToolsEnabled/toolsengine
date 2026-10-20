@@ -9,3 +9,12 @@ Requested project files persist until you remove them. Other explicit ToolsEngin
 MIT LICENSE governs this source; no separate hosted service terms or product account apply. The public website terms are not claimed to cover this plugin. Questions: support@toolsenabled.ai.
 
 The Codex plugin forwards TOOLSENGINE_CODEX_WORKSPACE and TOOLSENGINE_CODEX_RUNTIME. The latter selects a durable runtime folder outside the disposable Codex plugin cache; it holds source and npm dependencies until you delete it. Startup checks matching source/lock bytes and never downloads dependencies.
+
+The optional Linux `--firefox-hidden` mode creates a separate private profile
+and an authenticated private display. It does not import the everyday Firefox
+profile, passwords or cookies, and exposes no credential-copy tool. Observations
+are returned to the client without automatic page-snapshot files. Firefox keeps
+its own downloads and sign-ins, outside the Chromium artifact quotas, until you
+close its owned browser and remove its dedicated profile. Closing the MCP
+connection detaches the helper and preserves that browser/profile for reuse.
+See [private Firefox](docs/hidden-firefox.md) for prerequisites and limitations.

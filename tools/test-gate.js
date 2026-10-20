@@ -17,6 +17,7 @@ export const BROWSER_TESTS_DID_NOT_RUN = Object.freeze([
   'The Chromium build this version is pinned to is not on this machine',
 ]);
 
+export const FIREFOX_LIVE_TEST = 'hidden Firefox types and clicks on its authenticated private display without importing user credentials';
 export const REQUIRED_BROWSER_SUCCESSES = Object.freeze([
   'real Chromium navigation, form interaction, snapshot, screenshot and PDF',
   'explicit CDP attachment lists tabs and disconnects without closing the browser',
@@ -24,6 +25,7 @@ export const REQUIRED_BROWSER_SUCCESSES = Object.freeze([
   'in an attached browser a download is left to that browser:',
   'actual stdio MCP resizes real browser desktop/mobile',
   'a browser with a dedicated profile (--profile-dir) is started sandboxed as well',
+  ...(process.platform === 'linux' ? [FIREFOX_LIVE_TEST] : []),
 ]);
 
 // The test files whose tests open a page in a browser or attach to one. A
@@ -32,6 +34,7 @@ export const REQUIRED_BROWSER_SUCCESSES = Object.freeze([
 // file a line belongs to is known from the "# File:" line that runTests
 // writes before each file's output.
 export const BROWSER_TEST_FILES = Object.freeze([
+  'tests/firefox-live.linux.test.js',
   'tests/browser-extension.test.js',
   'tests/browser-modes.integration.test.js',
   'tests/browser-sandbox.integration.test.js',
@@ -65,7 +68,11 @@ export function unrecognisedBrowserSkips(text) {
       && file === 'tests/browser-modes.integration.test.js'
       && skip[1].trim() === 'the browser ToolsEngine starts writes nothing under the configuration folder of the environment it was started in'
       && reason === 'XDG_CONFIG_HOME is a Linux convention';
-    if (!xdgPlatformSkip && !KNOWN_BROWSER_SKIPS.some(words => reason.startsWith(words))) found.push({ file, name: skip[1].trim(), reason });
+    const firefoxPlatformSkip = process.platform !== 'linux'
+      && file === 'tests/firefox-live.linux.test.js'
+      && skip[1].trim() === FIREFOX_LIVE_TEST
+      && reason === 'Firefox mode requires Linux';
+    if (!xdgPlatformSkip && !firefoxPlatformSkip && !KNOWN_BROWSER_SKIPS.some(words => reason.startsWith(words))) found.push({ file, name: skip[1].trim(), reason });
   }
   return found;
 }

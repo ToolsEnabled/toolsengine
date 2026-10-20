@@ -1,5 +1,10 @@
 # ToolsEngine portable MCP
 
+Optional Linux Firefox UI control is documented in
+[Private Firefox on Linux](docs/hidden-firefox.md). It uses an authenticated
+private display and a separate profile, preserves the browser sandbox, and
+does not copy passwords or cookies from your everyday browser.
+
 A separate local MCP server for browser automation, workspace files and public
 web reading on Windows and Linux. Version 0.1.8 adds native Windows installer
 ACL checks and guarded desktop focus/dialog repairs to 0.1.7
