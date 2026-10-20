@@ -17,3 +17,13 @@ export function restrictPluginTools(tools, profile) {
   if (profile !== 'openai') throw new Error('Unknown ToolsEngine plugin profile.');
   return tools.filter(tool => OPENAI_PLUGIN_TOOLS.includes(tool.name));
 }
+
+// The directory package does not expose hidden state, authentication stores,
+// agent instructions or configuration through its otherwise scoped file tools.
+// This is a path boundary, not a claim to classify all sensitive document text.
+export function restrictedPluginPath(value) {
+  return String(value).replaceAll('\\', '/').split('/').some(part =>
+    (part.startsWith('.') && part !== '.' && part !== '..')
+    || /^(?:appdata|library|credentials|secrets|auth\.json|cookies|login data|local state|agents(?:\.override)?\.md|claude\.md|gemini\.md|id_(?:rsa|dsa|ecdsa|ed25519))(?:$|\.)/i.test(part)
+    || /\.(?:pem|key|p12|pfx|kdbx)$/i.test(part));
+}

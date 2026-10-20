@@ -19,7 +19,7 @@ test('Codex package launches no-browser mode and confines actual file calls to s
  const market=JSON.parse(await fs.readFile(path.join(root,'.agents/plugins/marketplace.json'),'utf8'));
  assert.equal(market.plugins.find(p=>p.name===manifest.name).policy.installation,'AVAILABLE');
  assert.deepEqual(manifest.hooks,{});
- const base=await fs.mkdtemp(path.join(os.tmpdir(),'engine-codex-'));
+ const base=await fs.mkdtemp(path.join(process.platform==='win32'?os.userInfo().homedir:os.tmpdir(),'engine-codex-'));
  const workspace=path.join(base,'project');await fs.mkdir(workspace);
  await fs.writeFile(path.join(base,'outside.txt'),'outside owned fixture');
  const transport=new StdioClientTransport({command:entry.command,args,cwd:path.resolve(root,entry.cwd),stderr:'pipe',env:{...process.env,...forwarded({TOOLSENGINE_CODEX_WORKSPACE:workspace,TOOLSENGINE_CODEX_RUNTIME:root})}});
@@ -83,7 +83,7 @@ test('two-root launcher refuses symlink aliases consistently with canonical work
  }
 });
 test('distinct plugin and durable runtime serve an unrelated workspace with actual file values', {timeout:30000},async t=>{
- const runtime=await preparedRuntime(),workspace=await fs.mkdtemp(path.join(os.tmpdir(),'engine-unrelated-'));
+ const runtime=await preparedRuntime(),workspace=await fs.mkdtemp(path.join(process.platform==='win32'?os.userInfo().homedir:os.tmpdir(),'engine-unrelated-'));
  const original=await fs.readFile(path.join(root,'.codex-plugin/start.mjs'));
  const transport=new StdioClientTransport({command:entry.command,args,cwd:root,stderr:'pipe',env:{...process.env,...forwarded({TOOLSENGINE_CODEX_WORKSPACE:workspace,TOOLSENGINE_CODEX_RUNTIME:runtime})}});
  let stderr='';transport.stderr?.on('data',c=>{stderr+=c;});const client=new Client({name:'two-physical-program-roots',version:'1'});t.after(()=>client.close());await client.connect(transport).catch(error=>{throw new Error(error.message+'; server stderr: '+stderr);});

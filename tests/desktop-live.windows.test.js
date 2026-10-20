@@ -1,11 +1,11 @@
 // The four Windows desktop tools against real windows, through real stdio MCP.
 //
 // Opt-in: set TOOLSENGINE_DESKTOP_LIVE=1 on Windows. The test opens two
-// Notepad windows of its own, works only on those, and ends both processes.
+// native WinForms windows of its own, works only on those, and ends both processes.
 // It never selects, inspects, captures or acts on any other window. Listing
 // windows is how the tool works, so the list of visible windows passes through
 // this process; the test reads only its own rows and prints none of the others.
-// The last test moves the real mouse cursor into the test's own Notepad window.
+// The last test moves the real mouse cursor into the test's own fixture window.
 import test, { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
@@ -25,7 +25,7 @@ const ordinaryName = `te-probe-${unique}.txt`;
 const protectedName = `te-confirm-${unique}.txt`;
 const firstText = `ToolsEngine desktop probe ${unique}`;
 let client, workspace, stderr = '';
-const notepads = [];
+const windows = [];
 
 const textOf = result => (result.content || []).filter(part => part.type === 'text').map(part => part.text).join('\n');
 const call = (name, args = {}) => client.callTool({ name, arguments: args });
@@ -47,8 +47,8 @@ function powershell(script) {
   assert.equal(result.status, 0, result.stderr);
   return result.stdout.trim();
 }
-// Moves only the window of the Notepad process this test started.
-function placeOwnNotepad(pid, half) {
+// Moves only the window of the fixture process this test started.
+function placeOwnWindow(pid, half) {
   return powershell(`$ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class TestWindow { [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int w, int height, uint flags); [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int command); }'
@@ -65,24 +65,27 @@ if (![TestWindow]::SetWindowPos($handle, [IntPtr]::Zero, $x, $area.Top + 20, $ha
 before(async () => {
   if (!live) return;
   workspace = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'toolsengine-desktop-live-')));
-  await fs.writeFile(path.join(workspace, ordinaryName), firstText);
-  await fs.writeFile(path.join(workspace, protectedName), 'This window has a protected word in its title.');
-  for (const name of [ordinaryName, protectedName]) {
-    notepads.push(spawn(path.join(process.env.SystemRoot, 'System32', 'notepad.exe'), [path.join(workspace, name)], { stdio: 'ignore' }));
+  const executable = path.join(workspace, 'te-desktop-fixture.exe');
+  const source = fileURLToPath(new URL('./support/desktop-fixture.cs', import.meta.url));
+  const literal = value => "'" + value.replaceAll("'", "''") + "'";
+  powershell(`$ErrorActionPreference = 'Stop'
+Add-Type -Path ${literal(source)} -ReferencedAssemblies System.Windows.Forms,System.Drawing -OutputAssembly ${literal(executable)} -OutputType WindowsApplication`);
+  for (const [name, text] of [[ordinaryName, firstText], [protectedName, 'Protected title test.']]) {
+    windows.push(spawn(executable, [name, text], { stdio: 'ignore' }));
   }
   // Wait until both test windows exist.
-  for (const child of notepads) {
+  for (const child of windows) {
     const deadline = Date.now() + 20000;
     for (;;) {
       const state = powershell(`$p = Get-Process -Id ${child.pid} -ErrorAction SilentlyContinue; if ($p -and $p.MainWindowHandle -ne [IntPtr]::Zero) { 'ready' } else { 'waiting' }`);
       if (state === 'ready') break;
-      assert.ok(Date.now() < deadline, 'a test Notepad window did not appear');
+      assert.ok(Date.now() < deadline, 'a test fixture window did not appear');
       await new Promise(resolve => setTimeout(resolve, 500));
     }
   }
   // A starting window can take the keyboard focus a moment after it appears.
   await new Promise(resolve => setTimeout(resolve, 2000));
-  placeOwnNotepad(notepads[0].pid, 'right');
+  placeOwnWindow(windows[0].pid, 'right');
   const home = os.userInfo().homedir;
   const transport = new StdioClientTransport({ command: process.execPath,
     args: [process.env.TOOLSENGINE_TEST_ENTRY || fileURLToPath(new URL('../bin/toolsengine.js', import.meta.url)), '--workspace', workspace, '--no-browser',
@@ -95,7 +98,7 @@ before(async () => {
 
 after(async () => {
   await client?.close();
-  for (const child of notepads) { try { child.kill(); } catch {} }
+  for (const child of windows) { try { child.kill(); } catch {} }
   if (workspace) await fs.rm(workspace, { recursive: true, force: true, maxRetries: 20, retryDelay: 200 });
 });
 
@@ -110,9 +113,8 @@ test('the desktop tools are offered with their titles when the desktop is switch
 test('desktop.inspect lists the test window, and withholds the one with a protected title while naming the word', options, async () => {
   const { listed, mine } = await myWindow();
   assert.equal(mine.length, 1, 'exactly one of the two test windows may be listed');
-  // Notepad shows the name with or without ".txt", following the Explorer setting.
-  assert.match(mine[0].label, new RegExp(`^te-probe-${unique}(?:\\.txt)? - Notepad$`));
-  assert.equal(mine[0].application.toLowerCase(), 'notepad');
+  assert.equal(mine[0].label, ordinaryName);
+  assert.equal(mine[0].application.toLowerCase(), 'te-desktop-fixture');
   assert.ok(!listed.windows.some(window => window.label.includes('te-confirm-')), 'the window titled with "confirm" must not be listed');
   assert.ok(listed.withheldByProtectedRule, 'the result must say that the rule withheld a window');
   assert.ok(listed.withheldByProtectedRule.windows >= 1);
@@ -141,9 +143,8 @@ test('desktop.act types into the test window and the new text can be read back',
   };
   let { mine, field } = await locate();
   const typed = `Typed through desktop.act ${unique} `;
-  // Notepad's text area takes typing at the caret, which needs the keyboard
-  // focus. If another window takes the focus in between, the tool sends
-  // nothing and says so. Inspect again and try once more, as an assistant would.
+  // The ordinary value field replaces its contents through UI Automation.
+  // Any focus refusal must leave its previous text intact.
   let result = await call('desktop.act', { kind: 'type', targetId: field.id, text: typed });
   if (result.isError) {
     assert.match(textOf(result), /^(?:Focus changed before input\. Nothing was sent\.|Windows did not focus the confirmed window\. No text was sent\.|The confirmed field did not receive focus\. No text was sent\.|\[FOCUS_[A-Z_]+\] [^\r\n]*No text was sent\.(?: Capture the confirmed window again; if unobscured, choose a neutral point from the new image with desktop\.pointer click, then verify focus\.)?(?: HRESULT 0x[0-9A-F]{8}\.)?)$/);
@@ -153,7 +154,7 @@ test('desktop.act types into the test window and the new text can be read back',
   }
   assert.notEqual(result.isError, true, `desktop.act type failed twice: ${textOf(result).slice(0, 200)}`);
   assert.equal(JSON.parse(textOf(result)).status, 'completed');
-  // Notepad marks an edited file with "*" in its title. A window whose title
+  // The fixture marks an edited field with "*" in its title. A window whose title
   // changed is a different target: the old id is refused, with the reason,
   // and the window must be listed again.
   const old = await call('desktop.inspect', { windowId: mine[0].id, includeText: true });
@@ -166,7 +167,7 @@ test('desktop.act types into the test window and the new text can be read back',
   const again = JSON.parse(textOf(await ok('desktop.inspect', { windowId: renamed[0].id, includeText: true })));
   const current = again.controls.find(control => typeof control.text === 'string' && control.text.includes(typed));
   assert.ok(current, 'the typed text was not found in the window');
-  assert.ok(current.text.includes(firstText), 'typing at the caret inserts; it does not replace the document');
+  assert.equal(current.text, typed, 'typing into a value field replaces its content');
   // A stale control id and a filesystem path as text are refused.
   const stale = await call('desktop.act', { kind: 'type', targetId: field.id, text: 'second' });
   assert.equal(stale.isError, true);
@@ -188,7 +189,7 @@ test('desktop.capture returns a picture of the test window', options, async () =
 });
 
 test('desktop.pointer is refused, with the reason, while the window is outside the left half', options, async () => {
-  placeOwnNotepad(notepads[0].pid, 'right');
+  placeOwnWindow(windows[0].pid, 'right');
   const { mine } = await myWindow();
   await ok('desktop.capture', { windowId: mine[0].id });
   const refused = await call('desktop.pointer', { windowId: mine[0].id, kind: 'click', x: 60, y: 120 });

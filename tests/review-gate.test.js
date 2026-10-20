@@ -18,7 +18,7 @@ test('release gate refuses an unidentified browser skip even when the required b
  // The same skip in a file that opens no page is not held against the tree,
  // and in a browser test file a known fact about the build machine is not either.
  const fine=`# File: tests/installer.test.js\nok 1 - ordinary test # SKIP novel skip reason\n# File: tests/browser-sandbox.integration.test.js\n${evidence}ok 7 - sandbox test # SKIP ${KNOWN_BROWSER_SKIPS[0]}\n${summary(8,6,0,2)}`;
- assert.deepEqual(judgeTestRun({status:0,output:fine}),{ok:true,counts:{tests:8,pass:6,fail:0,skipped:2}});
+ assert.deepEqual(judgeTestRun({status:0,output:fine}),{ok:true,counts:{tests:8,pass:6,fail:0,skipped:2,cancelled:0,todo:0}});
  // Without the required scenarios the refusal names them, whatever was skipped.
  assert.match(judgeTestRun({status:0,output:`ok 1 - ordinary test\nok 2 - browser test # SKIP novel skip reason\n${summary(2,1,0,1)}`}).reason,/^Required browser tests did not pass: /);
  assert.ok(BROWSER_TEST_FILES.includes('tests/browser.integration.test.js'));

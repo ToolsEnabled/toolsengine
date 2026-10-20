@@ -1,4 +1,5 @@
 import { folderContains } from './config.js';
+import { restrictedPluginPath } from './plugin-policy.js';
 import { constants as fsConstants } from "node:fs";
 import {
   link,
@@ -446,10 +447,15 @@ const READ_ONLY = Object.freeze({
   openWorldHint: false,
 });
 
-export function createWorkspaceTools({ workspace, profileDir } = {}) {
+export function createWorkspaceTools({ workspace, profileDir, pluginProfile } = {}) {
+  const strict = pluginProfile === 'openai';
+  const restricted = value => strict && restrictedPluginPath(value);
   let rootPromise;
   const getRoot = () => {
-    rootPromise ??= initializeRoot(workspace);
+    rootPromise ??= initializeRoot(workspace).then(root => {
+      if (restricted(root)) fail('PLUGIN_FILE_REFUSED', 'The plugin workspace cannot be inside hidden state or a protected profile folder.');
+      return root;
+    });
     return rootPromise;
   };
   // The folders of the browser inside this workspace, which these tools stay out of.
@@ -495,6 +501,7 @@ export function createWorkspaceTools({ workspace, profileDir } = {}) {
           if (scanned >= MAX_LIST_SCANNED_ENTRIES) break;
           scanned += 1;
           const entryPath = path.join(candidate, entry.name);
+          if (restricted(relativePortable(root, entryPath))) continue;
           let info;
           try {
             info = await lstat(entryPath);
@@ -767,6 +774,7 @@ export function createWorkspaceTools({ workspace, profileDir } = {}) {
             }
             scannedEntries += 1;
             const entryPath = path.join(checkedDirectory, entry.name);
+            if (restricted(relativePortable(root, entryPath))) continue;
             let info;
             try {
               info = await lstat(entryPath);
@@ -914,5 +922,22 @@ export function createWorkspaceTools({ workspace, profileDir } = {}) {
     },
   };
 
-  return [list, readFile, writeFile, search];
+  const tools = [list, readFile, writeFile, search];
+  if (!strict) return tools;
+  const descriptions = {
+    'workspace.list': 'List ordinary project entries in one workspace folder, up to 1,000 entries after scanning at most 2,000.',
+    'workspace.read_file': 'Read one ordinary UTF-8 project file up to 1 MiB, with its SHA-256.',
+    'workspace.write_file': 'Create or replace one ordinary UTF-8 project file using the existing hash checks. Replacing changes the file contents.',
+    'workspace.search': 'Search ordinary UTF-8 project files for literal text within the configured workspace and bounded search limits.',
+  };
+  return tools.map(tool => ({
+    ...tool,
+    description: `${descriptions[tool.name]} Hidden entries, credential stores, private-key files, agent instruction files and protected profile folders are refused. Symlinks, junctions and multiply linked files are refused. Use only for task-relevant project data; do not supply authentication secrets, payment-card data, health records or government identifiers. ${BROWSER_FOLDERS_NOTE}`,
+    async handler(args = {}) {
+      assertObject(args);
+      const segments = portableSegments(args.path ?? '.', { allowRoot: true });
+      if (restricted(segments.join('/'))) fail('PLUGIN_FILE_REFUSED', 'The plugin does not access hidden state, credentials or agent configuration.');
+      return tool.handler(args);
+    },
+  }));
 }

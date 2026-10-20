@@ -58,7 +58,7 @@ export function unrecognisedBrowserSkips(text) {
   let file = null;
   for (const line of String(text).split('\n')) {
     const header = /^# File: (.*)$/.exec(line);
-    if (header) { file = header[1].trim(); continue; }
+    if (header) { file = header[1].trim().replaceAll('\\', '/'); continue; }
     const skip = /^\s*ok \d+ - (.*?) # SKIP ?(.*)$/.exec(line);
     if (!skip || !BROWSER_TEST_FILES.includes(file)) continue;
     const reason = skip[2].trim();
@@ -81,12 +81,15 @@ export function unrecognisedBrowserSkips(text) {
 export function judgeTestRun({ status, output }) {
   const text = String(output ?? '');
   const count = name => { const match = new RegExp(`^# ${name} (\\d+)\\s*$`, 'm').exec(text); return match ? Number(match[1]) : null; };
-  const counts = { tests: count('tests'), pass: count('pass'), fail: count('fail'), skipped: count('skipped') };
+  const counts = { tests: count('tests'), pass: count('pass'), fail: count('fail'), skipped: count('skipped'),
+    cancelled: count('cancelled') ?? 0, todo: count('todo') ?? 0 };
   if (counts.tests === null || counts.pass === null || counts.fail === null)
     return { ok: false, counts, reason: 'The test run gave no result that could be read.' };
   const failed = text.split('\n').filter(line => /^\s*not ok \d+ - /.test(line)).map(line => line.replace(/^\s*not ok \d+ - /, '').trim());
-  if (status !== 0 || counts.fail > 0)
-    return { ok: false, counts, reason: `${counts.fail} of ${counts.tests} tests failed${failed.length ? `: ${failed.slice(0, 5).join('; ')}${failed.length > 5 ? '; ...' : ''}` : ` (exit code ${status})`}.` };
+  if (status !== 0 || counts.fail > 0 || counts.cancelled > 0 || counts.todo > 0 || failed.length)
+    return { ok: false, counts, reason: `${counts.fail} failed, ${counts.cancelled} cancelled and ${counts.todo} TODO out of ${counts.tests} tests${failed.length ? `: ${failed.slice(0, 5).join('; ')}${failed.length > 5 ? '; ...' : ''}` : ` (exit code ${status})`}.` };
+  if (counts.pass + counts.fail + counts.skipped + counts.cancelled + counts.todo !== counts.tests)
+    return { ok: false, counts, reason: 'The test totals do not account for every test.' };
   if (counts.tests === 0 || counts.pass === 0) return { ok: false, counts, reason: 'No test ran.' };
   const notRun = text.split('\n').filter(line => BROWSER_TESTS_DID_NOT_RUN.some(words => line.includes(`# SKIP ${words}`)));
   if (notRun.length) {
@@ -107,7 +110,7 @@ export function judgeTestRun({ status, output }) {
 // Run every test file sequentially, with one test process at a time.
 export function runTests(packageFolder, { env = process.env } = {}) {
   const files = fs.readdirSync(path.join(packageFolder, 'tests')).filter(name => name.endsWith('.test.js')).sort().map(name => path.join('tests', name));
-  const totals = { tests: 0, pass: 0, fail: 0, skipped: 0 };
+  const totals = { tests: 0, pass: 0, fail: 0, skipped: 0, cancelled: 0, todo: 0 };
   let status = 0, output = '';
   for (const file of files) {
     const result = spawnSync(process.execPath, ['--test', '--test-reporter=tap', file], { cwd: packageFolder, env, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
