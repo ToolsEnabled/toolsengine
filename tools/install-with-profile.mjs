@@ -12,12 +12,25 @@
 //
 // It is not part of the package or of a release archive.
 import path from 'node:path';
+import os from 'node:os';
 import { pathToFileURL } from 'node:url';
 
 const [profile, installer, ...args] = process.argv.slice(2);
 if (!profile || !installer) {
   console.error('usage: node install-with-profile.mjs PROFILE path/to/install.mjs [installer arguments]');
   process.exit(64);
+}
+// Windows fixture environment home follows USERPROFILE, independently of the
+// explicit account-profile test seam below. A surrounding synthetic-profile
+// preload must not collapse those two values or erase deliberate mismatch tests.
+// This file is excluded from installed/release payloads. No SID/UID/token API changes.
+if (process.platform === 'win32') {
+  const environmentHome = process.env.USERPROFILE;
+  if (!environmentHome || !path.isAbsolute(environmentHome)) {
+    console.error('The Windows fixture needs an absolute USERPROFILE.');
+    process.exit(64);
+  }
+  os.homedir = () => environmentHome;
 }
 const module = await import(pathToFileURL(path.resolve(installer)).href);
 if (typeof module.useAccountProfile !== 'function') {

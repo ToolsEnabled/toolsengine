@@ -396,6 +396,18 @@ function snapshotTreeBytes(directory) {
   visit(directory, '');
   return entries;
 }
+// Positive manually-authored Windows fixtures must have the same Cu-owned
+// private program root the installer creates. Never adopt/repair an old root.
+function createFreshWindowsProgramRoot() {
+  if (!windows) return;
+  const root = path.join(home, 'ToolsEngine');
+  assert.equal(fs.existsSync(home), false);
+  assert.equal(fs.existsSync(root), false);
+  const security = installerModule.windowsDirectorySecurity(root, { create: true });
+  assert.equal(security.ownedByUser, true);
+  assert.equal(security.private, true);
+  assert.equal(security.protected, true);
+}
 function assertWindowsRecoveryRefusedUnchanged(result, before) {
   assert.ok(windows, 'this counterpart is specific to Windows recovery policy');
   assert.equal(result.status, 1, result.out);
@@ -1385,16 +1397,7 @@ test(windows ? 'install: half-copied folders with unknown Windows installer iden
   : 'install: half-copied folders of an installer that is gone are cleared away, and nothing else', () => {
   reset();
   const root = path.join(home, 'ToolsEngine');
-  if (windows) {
-    // Author a fresh positive fixture using the same native policy as install.
-    // Never adopt or repair an existing directory to make this test pass.
-    assert.equal(fs.existsSync(home), false);
-    assert.equal(fs.existsSync(root), false);
-    const security = installerModule.windowsDirectorySecurity(root, { create: true });
-    assert.equal(security.ownedByUser, true);
-    assert.equal(security.private, true);
-    assert.equal(security.protected, true);
-  }
+  createFreshWindowsProgramRoot();
   // Process numbers that belonged to processes which have ended.
   const endedProcess = () => spawnSync(process.execPath, ['-e', '']).pid;
   const ended = endedProcess();
@@ -1470,7 +1473,9 @@ test('install: a workspace that cannot be used stops the install before anything
 
 test('install: an empty folder with the version\'s name is not an installed version', () => {
   reset();
+  createFreshWindowsProgramRoot();
   fs.mkdirSync(installed(), { recursive: true });
+  assert.deepEqual(fs.readdirSync(installed()), []);
   const result = installer(['--browser', 'none']);
   assert.equal(result.status, 0, result.out);
   assert.deepEqual(compareWithRelease(readRelease(installed()), installed()), []);
