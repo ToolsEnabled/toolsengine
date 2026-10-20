@@ -1381,9 +1381,20 @@ test(windows ? 'Windows recovery preserves extra entries and unknown liveness, w
   assert.match(stillInstalling({ state: 'installing' }), /explicit recovery/);
 });
 
-test('install: half-copied folders of an installer that is gone are cleared away, and nothing else', () => {
+test(windows ? 'install: half-copied folders with unknown Windows installer identity stay unchanged'
+  : 'install: half-copied folders of an installer that is gone are cleared away, and nothing else', () => {
   reset();
   const root = path.join(home, 'ToolsEngine');
+  if (windows) {
+    // Author a fresh positive fixture using the same native policy as install.
+    // Never adopt or repair an existing directory to make this test pass.
+    assert.equal(fs.existsSync(home), false);
+    assert.equal(fs.existsSync(root), false);
+    const security = installerModule.windowsDirectorySecurity(root, { create: true });
+    assert.equal(security.ownedByUser, true);
+    assert.equal(security.private, true);
+    assert.equal(security.protected, true);
+  }
   // Process numbers that belonged to processes which have ended.
   const endedProcess = () => spawnSync(process.execPath, ['-e', '']).pid;
   const ended = endedProcess();
@@ -1418,13 +1429,28 @@ test('install: half-copied folders of an installer that is gone are cleared away
 
   const { clearAbandonedCopies } = installerModule;
   assert.equal(typeof clearAbandonedCopies, 'function');
+  const originalNames = windows ? fs.readdirSync(root).sort() : null;
+  const originalCopies = windows ? snapshotTreeBytes(root) : null;
+  const unchangedCopies = () => snapshotTreeBytes(root).filter(([name]) => originalNames.includes(name.split('/')[0]));
   const result = installer(['--browser', 'none']);
   assert.equal(result.status, 0, result.out);
-  assert.match(result.out, /Cleared away 1 half-copied folder\(s\)/);
-  assert.deepEqual(fs.readdirSync(root).sort(), [VERSION, ofALivingInstaller, ...kept, 'workspace'].sort(), 'only the two marked folders of installers that are gone may be removed');
-  // Once the other installer is gone too, its folder goes with the next call; the unmarked ones never do.
-  assert.deepEqual(clearAbandonedCopies(root, { alive: () => false }), [ofALivingInstaller]);
-  assert.deepEqual(fs.readdirSync(root).sort(), [VERSION, ...kept, 'workspace'].sort());
+  if (windows) {
+    assert.deepEqual(installerModule.currentProcessIdentity(), { scope: null, start: null });
+    assert.doesNotMatch(result.out, /Cleared away \d+ half-copied folder\(s\)/);
+    assert.deepEqual(fs.readdirSync(root).sort(), [VERSION, ...originalNames, 'workspace'].sort());
+    assert.deepEqual(unchangedCopies(), originalCopies, 'unknown installer identity must preserve every staged entry and byte');
+    let aliveCalls = 0;
+    assert.deepEqual(clearAbandonedCopies(root, { alive: () => { aliveCalls++; return false; } }), []);
+    assert.equal(aliveCalls, 0, 'unknown scope refuses before consulting a process number');
+    assert.deepEqual(fs.readdirSync(root).sort(), [VERSION, ...originalNames, 'workspace'].sort());
+    assert.deepEqual(unchangedCopies(), originalCopies, 'a forced dead-process answer cannot authorize adoption or deletion');
+  } else {
+    assert.match(result.out, /Cleared away 1 half-copied folder\(s\)/);
+    assert.deepEqual(fs.readdirSync(root).sort(), [VERSION, ofALivingInstaller, ...kept, 'workspace'].sort(), 'only the two marked folders of installers that are gone may be removed');
+    // Once the other installer is gone too, its folder goes with the next call; the unmarked ones never do.
+    assert.deepEqual(clearAbandonedCopies(root, { alive: () => false }), [ofALivingInstaller]);
+    assert.deepEqual(fs.readdirSync(root).sort(), [VERSION, ...kept, 'workspace'].sort());
+  }
   // The installed version holds no mark: it is taken out before the folder is moved into place.
   assert.ok(!fs.existsSync(installed('.toolsengine-install-in-progress')));
   assert.equal(fromInstalled(['check']).status, 0);

@@ -321,6 +321,11 @@ requires verifiable ownership and plain directories, files and parents; linked
 or unreadable records are refused. Windows recovery is currently refused
 because this implementation cannot verify the required ownership there.
 
+On Windows this installer cannot establish process-instance identity, so
+`.incoming-*` folders are preserved even when their process number no longer
+exists. A successful fresh install can leave these older copies beside the new
+version; it does not attempt deletion using only a process number.
+
 ### Starting it by hand, and from source
 
 The `app` folder of the archive is an ordinary Node.js program. A client that
