@@ -8,7 +8,7 @@ codex plugin add toolsengine@toolsengine
 codex plugin list --json
 ```
 
-These main-branch commands apply after publication of 0.1.8. To deliberately evaluate an unpublished Windows-port candidate, select `--ref windows-port` for the marketplace and `--branch windows-port` for the runtime; keep both at the same revision. The separate OpenAI development branch is not the integrated Windows release.
+These main-branch commands apply after publication of 0.1.9-rc.1. To deliberately evaluate an unpublished Windows-port candidate, select the release candidate branch for both the marketplace and runtime; keep both at the same revision. The separate OpenAI development branch is not the integrated Windows release.
 
 Prepare a durable runtime outside the Codex plugin cache and outside your project. From a terminal, choose a new private folder and clone the same branch there, then install its pinned dependencies:
 

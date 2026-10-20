@@ -25,5 +25,6 @@ export function restrictedPluginPath(value) {
   return String(value).replaceAll('\\', '/').split('/').some(part =>
     (part.startsWith('.') && part !== '.' && part !== '..')
     || /^(?:appdata|library|credentials|secrets|auth\.json|cookies|login data|local state|agents(?:\.override)?\.md|claude\.md|gemini\.md|id_(?:rsa|dsa|ecdsa|ed25519))(?:$|\.)/i.test(part)
+    || /^(?:logins(?:-backup)?\.json|key[34]\.db|signons\.sqlite|cookies\.sqlite|login data|cookies)(?:$|[.-](?:bak|backup|old|corrupt|journal|wal|shm)(?:[.-].*)?$)/i.test(part)
     || /\.(?:pem|key|p12|pfx|kdbx)$/i.test(part));
 }

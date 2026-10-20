@@ -29,7 +29,8 @@ test('OpenAI file tools refuse protected paths and omit them from listing and se
  const workspace=await fs.mkdtemp(path.join(process.platform==='win32'?os.userInfo().homedir:os.tmpdir(),'plugin-files-'));
  t.after(()=>fs.rm(workspace,{recursive:true,force:true}));
  const hidden=['.env','.codex/auth.json','.claude/projects/sample/history.jsonl','.git/config',
-   '.codex/config.toml','AGENTS.md','private.key','nested/secrets.json','nested/.env.local'];
+   '.codex/config.toml','AGENTS.md','private.key','nested/secrets.json','nested/.env.local',
+   'logins.json','logins-backup.json','logins.json.bak','key4.db','key4.db-wal','cookies.sqlite','Login Data-journal'];
  for(const name of [...hidden,'notes.txt']){
    await fs.mkdir(path.dirname(path.join(workspace,name)),{recursive:true});
    await fs.writeFile(path.join(workspace,name),'synthetic match text');
@@ -44,9 +45,15 @@ test('OpenAI file tools refuse protected paths and omit them from listing and se
  const listed=JSON.stringify(await engine.call('workspace.list',{path:'.'}));
  assert.match(listed,/notes\.txt/);
  assert.doesNotMatch(listed,/\.env|\.codex|\.claude|\.git|AGENTS\.md|private\.key/);
+ const listValue=JSON.parse((await engine.call('workspace.list',{path:'.'})).content[0].text);
+ assert.equal(listValue.skippedProtectedEntries,13);
+ assert.match(listValue.protectedEntryRule,/protected-path policy/);
  const searched=JSON.stringify(await engine.call('workspace.search',{query:'synthetic match'}));
  assert.match(searched,/notes\.txt/);
  assert.doesNotMatch(searched,/secrets\.json|\.env|AGENTS\.md|private\.key/);
+ assert.doesNotMatch(searched,/logins|key4\.db|cookies\.sqlite|Login Data-journal/);
+ const searchValue=JSON.parse((await engine.call('workspace.search',{query:'synthetic match'})).content[0].text);
+ assert.equal(searchValue.skipped.protectedEntries,15);
  const ordinary=await engine.call('workspace.read_file',{path:'notes.txt'});
  assert.notEqual(ordinary.isError,true);
  const standalone=await createToolsEngine({workspace,browser:false});

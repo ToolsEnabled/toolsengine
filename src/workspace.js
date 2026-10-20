@@ -495,13 +495,14 @@ export function createWorkspaceTools({ workspace, profileDir, pluginProfile } = 
       let scanned = 0;
       let skippedSymlinks = 0;
       let skippedChangedEntries = 0;
+      let skippedProtectedEntries = 0;
       const directory = await opendir(candidate);
       try {
         for await (const entry of directory) {
           if (scanned >= MAX_LIST_SCANNED_ENTRIES) break;
           scanned += 1;
           const entryPath = path.join(candidate, entry.name);
-          if (restricted(relativePortable(root, entryPath))) continue;
+          if (restricted(relativePortable(root, entryPath))) { skippedProtectedEntries += 1; continue; }
           let info;
           try {
             info = await lstat(entryPath);
@@ -536,6 +537,7 @@ export function createWorkspaceTools({ workspace, profileDir, pluginProfile } = 
         scanLimit: MAX_LIST_SCANNED_ENTRIES,
         skippedSymlinks,
         skippedChangedEntries,
+        ...(strict ? { skippedProtectedEntries, protectedEntryRule: 'OpenAI plugin protected-path policy; names and contents withheld.' } : {}),
       };
     },
   };
@@ -727,6 +729,7 @@ export function createWorkspaceTools({ workspace, profileDir, pluginProfile } = 
       const directories = [start];
       const matches = [];
       const skipped = {
+        ...(strict ? { protectedEntries: 0 } : {}),
         hiddenDirectories: 0,
         browserFolders: 0,
         symlinks: 0,
@@ -774,7 +777,7 @@ export function createWorkspaceTools({ workspace, profileDir, pluginProfile } = 
             }
             scannedEntries += 1;
             const entryPath = path.join(checkedDirectory, entry.name);
-            if (restricted(relativePortable(root, entryPath))) continue;
+            if (restricted(relativePortable(root, entryPath))) { skipped.protectedEntries += 1; continue; }
             let info;
             try {
               info = await lstat(entryPath);
@@ -918,6 +921,7 @@ export function createWorkspaceTools({ workspace, profileDir, pluginProfile } = 
           maxScannedEntries: MAX_SEARCHED_ENTRIES,
         },
         skipped,
+        ...(strict ? { protectedEntryRule: 'OpenAI plugin protected-path policy; names and contents withheld.' } : {}),
       };
     },
   };
@@ -932,7 +936,7 @@ export function createWorkspaceTools({ workspace, profileDir, pluginProfile } = 
   };
   return tools.map(tool => ({
     ...tool,
-    description: `${descriptions[tool.name]} Hidden entries, credential stores, private-key files, agent instruction files and protected profile folders are refused. Symlinks, junctions and multiply linked files are refused. Use only for task-relevant project data; do not supply authentication secrets, payment-card data, health records or government identifiers. ${BROWSER_FOLDERS_NOTE}`,
+    description: `${descriptions[tool.name]} Hidden entries, known credential-store filenames, private-key files, agent instruction files and protected profile folders are refused. Listing and search report counts of protected entries they omit. File content access refuses symlinks, junctions and multiply linked files. Use only for task-relevant project data; do not supply authentication secrets, payment-card data, health records or government identifiers. ${BROWSER_FOLDERS_NOTE}`,
     async handler(args = {}) {
       assertObject(args);
       const segments = portableSegments(args.path ?? '.', { allowRoot: true });
