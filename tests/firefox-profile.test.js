@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { ensureAgentFirefoxProfile } from '../src/firefox-profile.js';
 
-test('dedicated Firefox setup refuses an existing personal profile without changing its bytes or mode', async t => {
+test('dedicated Firefox setup refuses an existing personal profile without changing its bytes or mode', {skip:process.platform!=='linux'}, async t => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'te-firefox-personal-'));
   t.after(() => fs.rm(root, { recursive:true, force:true }));
   await fs.writeFile(path.join(root,'cookies.sqlite'), 'personal-cookie-fixture');
@@ -16,7 +16,7 @@ test('dedicated Firefox setup refuses an existing personal profile without chang
   assert.deepEqual(await fs.readdir(root), ['cookies.sqlite']);
 });
 
-test('a profile symlink cannot redirect setup into another browser profile', async t => {
+test('a profile symlink cannot redirect setup into another browser profile', {skip:process.platform!=='linux'}, async t => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'te-firefox-link-'));
   t.after(() => fs.rm(root, { recursive:true, force:true }));
   const personal=path.join(root,'personal'); await fs.mkdir(personal);

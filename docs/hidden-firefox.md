@@ -33,11 +33,26 @@ to leave an enclosing sandbox.
 
 The profile is private to the current account at
 `~/.local/share/toolsengine/agent-firefox`. Creating it does not read the
-person's everyday Firefox profile. This distribution offers no password or
-cookie import tool. A site can still require authentication; if the client
-cannot provide an appropriate interactive sign-in flow, that flow is
-unsupported here. Prefer the site's official account integration or the
-existing browser-extension mode with its user approval flow.
+person's everyday Firefox profile. The standalone MCP offers
+`browser.transfer_firefox_profile` only for an explicit user request. It copies
+saved logins, their key databases and cookies locally into this dedicated
+profile, replacing its previous login state. The destination Firefox must be
+closed. A stale lock file alone is accepted, while a live destination lock or
+owned Firefox process refuses replacement. Source files remain unchanged; live
+SQLite database/WAL pairs are copied to private staging and checked before use.
+The result contains filenames and status, never credential values. Copied
+credentials persist locally until removed with the dedicated profile. An
+interrupted replacement can leave private recovery files in that profile.
+
+Fleet setting `browser.agent_firefox_profile_transfer` set to `false` disables
+transfer before source access; absent settings leave explicit transfer available.
+Starting or observing the hidden browser never imports a source profile.
+
+The OpenAI/Codex plugin entry always selects `--no-browser`: it offers only the
+eight workspace/public-web/status/discovery tools and cannot dispatch profile
+transfer. Standalone MCP capability does not imply directory approval of that
+capability. For plugin authentication prefer the service's supported integration
+or a user-approved browser flow outside this plugin entry.
 
 Page observations and screenshots are returned to the client. This mode does
 not automatically save page snapshots in the workspace. Password controls are

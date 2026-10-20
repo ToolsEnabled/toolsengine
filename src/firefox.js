@@ -11,6 +11,7 @@ import {
   agentFirefoxProfileDir,
 } from './browser-session.js';
 import { startAgentBrowser } from './firefox-profile.js';
+import { transferUserFirefoxProfile, loadFleetSettings, fleetProfileTransferAllowed, locateUserFirefoxProfile } from './firefox-profile-transfer.js';
 import { validateBrowserLayout } from './config.js';
 
 // Navigation accepts web URLs; internal, file, script and credential URLs
@@ -185,6 +186,14 @@ export async function createFirefoxBrowserBridge(config = {}, { spawnHelper = sp
       return request({op:'upload',path:await uploadFile(args.paths[0])});
     }),
     tool('browser.press_key', 'Press a bounded navigation/editing key in the hidden Firefox window.', schema({key:string},['key']), args=>request({op:'key',key:args.key})),
+    tool('browser.transfer_firefox_profile', 'Standalone MCP: only when the user requests it, copy their local Firefox saved logins, keys and cookies into the dedicated hidden profile. Replaces its previous login state; the dedicated Firefox must be closed. Fleet settings can disable this before source access. Source files remain unchanged. Copied credentials persist locally; no credential values are returned. This capability is unavailable through the OpenAI plugin entry.', schema({sourceProfile:{type:'string',minLength:1,maxLength:4096}}), async args=>{
+      if(args.sourceProfile&&!path.isAbsolute(args.sourceProfile))throw new Error('Name an absolute source Firefox profile path.');
+      const settings=await loadFleetSettings(config);
+      if(!fleetProfileTransferAllowed(settings))throw new Error('Fleet settings disable Firefox profile transfer. No source profile was read.');
+      const source=await locateUserFirefoxProfile(config.home,args.sourceProfile||config.userProfileDir);
+      const result=await transferUserFirefoxProfile({fleetSettings:settings,userProfileDir:source,agentProfileDir});
+      return {imported:result.imported,copied:result.copied,sourceUnchanged:result.sourceUnchanged};
+    }),
     {
       name:'browser.take_screenshot', description:'Capture the hidden Firefox window. This does not capture the user\'s visible screen. No files or browser storage are read.',
       sessionTarget: session.target,

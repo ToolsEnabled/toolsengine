@@ -7,6 +7,7 @@ export const AGENT_BROWSER_ACTIONS = Object.freeze([
   'browser.windows', 'browser.snapshot', 'browser.tabs', 'browser.navigate',
   'browser.navigate_back', 'browser.click', 'browser.type', 'browser.select_option',
   'browser.file_upload', 'browser.press_key', 'browser.take_screenshot',
+  'browser.transfer_firefox_profile',
 ]);
 
 const displayNumber = value => /^:(\d+)(?:\.\d+)?$/.exec(String(value || ''))?.[1];
@@ -45,7 +46,7 @@ export function agentBrowserStatus(config = {}) {
 }
 
 export function agentFirefoxInstructions() {
-  return 'The Firefox tools operate in a private hidden display with a dedicated profile on this computer. They do not attach to the person\'s visible Firefox or inherit its sign-ins. This mode offers no password or cookie import tool. Sign-ins made in the dedicated profile may remain between sessions. A virtual-machine backend is not configured; failure to create the private display is reported. Firefox\'s own sandbox stays enabled. Read a fresh browser.snapshot after an action. References expire after 90 seconds and after actions. An uncertain result must be checked before retrying an action that could submit twice. Screenshots and page observations can contain private information; password fields are omitted, but other secrets are not reliably detected. The client must enforce task authority and approval.';
+  return 'The Firefox tools operate in a private hidden display with a dedicated profile on this computer. They do not attach to the person\'s visible Firefox or automatically inherit its sign-ins. Standalone MCP offers explicit local profile transfer only when the user requests it; fleet settings can disable it. The OpenAI plugin entry offers no browser or credential-transfer tools. Sign-ins and copied credentials in the dedicated profile may remain between sessions. A virtual-machine backend is not configured; failure to create the private display is reported. Firefox\'s own sandbox stays enabled. Read a fresh browser.snapshot after an action. References expire after 90 seconds and after actions. An uncertain result must be checked before retrying an action that could submit twice. Screenshots and page observations can contain private information; password fields are omitted, but other secrets are not reliably detected. The client must enforce task authority and approval.';
 }
 
 export function agentBrowserHelperEnv(session, baseEnv, profileDir) {

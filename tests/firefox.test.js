@@ -94,9 +94,9 @@ test('Firefox tools drive a hidden window and do not take the visible screen; th
   }
   const text = serverInstructions({browser:'firefox',desktop:false});
   assert.match(text,/private hidden display/);
-  assert.match(text,/no password or cookie import tool/);
+  assert.match(text,/Standalone MCP offers explicit local profile transfer/);
   assert.match(text,/sandbox stays enabled/);
-  assert(!bridge.tools.some(tool=>tool.name==='browser.transfer_firefox_profile'));
+  assert(bridge.tools.some(tool=>tool.name==='browser.transfer_firefox_profile'));
   for(const tool of bridge.tools) assert.equal(tool.annotations.readOnlyHint,false);
 
 });

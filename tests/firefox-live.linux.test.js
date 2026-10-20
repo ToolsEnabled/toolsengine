@@ -50,7 +50,7 @@ test('hidden Firefox types and clicks on its authenticated private display witho
   receipt=JSON.parse(await fs.readFile(path.join(bridge.agentProfileDir,'.toolsengine-display.json'),'utf8'));
   assert.notEqual(receipt.display,process.env.DISPLAY||':0');
   await assert.rejects(promisify(execFile)('xdotool',['getdisplaygeometry'],{env:{...process.env,DISPLAY:receipt.display,XAUTHORITY:'/dev/null'},timeout:2000}));
-  assert.equal(tools.has('browser.transfer_firefox_profile'),false);
+  assert.equal(tools.has('browser.transfer_firefox_profile'),true);
   const env=(await fs.readFile(`/proc/${pid}/environ`)).toString().split('\0');
   assert(!env.some(value=>value.startsWith('MOZ_DISABLE_CONTENT_SANDBOX=')));
 });

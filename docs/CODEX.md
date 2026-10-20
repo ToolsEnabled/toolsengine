@@ -26,3 +26,8 @@ Before starting Codex, explicitly select an existing project outside the plugin 
 Ask: “Use ToolsEngine system.status, write plugin-check.txt with the text hello in this project, then read it back.” Expect browserEnabled false, a successful write and exactly hello. This plugin offers the eight file/public-web/status/discovery tools of --no-browser. Browser/desktop integration remains available through the separate explicit MCP configuration in [clients.md](clients.md); it is not qualified by this plugin check. Do not install this plugin and a duplicate manually registered ToolsEngine server in the same session unless you deliberately want both.
 
 The server runs with your OS account permissions; its workspace file boundary is enforced by the server, and approvals/task authority remain with Codex and the person. No product account, OAuth service, API key or paid model API is required. Codex authentication is separate. See [privacy](../PRIVACY.md) for data, retention and deletion. Uninstall using `codex plugin remove toolsengine@toolsengine`; project files and artifacts remain until you delete them. The Codex marketplace/install and actual model-task evidence covers Linux with Codex CLI 0.162.1. Windows native launcher/stdio qualification is separate from the owner's real Codex desktop/session check; no Windows Codex host or public-directory approval is implied by the Linux evidence.
+
+The standalone MCP's optional Firefox profile-transfer capability is outside
+this plugin entry. The launcher fixes its arguments to `--no-browser`, and
+the server rejects browser/profile-transfer dispatch in that mode. Installing
+the full matching runtime does not add those capabilities to the plugin.
