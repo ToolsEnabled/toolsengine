@@ -82,9 +82,15 @@ test('a browser started before the downloads folder is found tampered with is cl
   // to this test alone, whatever runs beside it.
   const temp = path.join(root, 'process-temp');
   await fs.mkdir(temp);
-  const savedTemp = process.env.TMPDIR;
-  process.env.TMPDIR = temp;
-  t.after(() => { if (savedTemp === undefined) delete process.env.TMPDIR; else process.env.TMPDIR = savedTemp; });
+  const tempVariables = ['TEMP', 'TMP', 'TMPDIR'];
+  const savedTemp = Object.fromEntries(tempVariables.map(name => [name, process.env[name]]));
+  for (const name of tempVariables) process.env[name] = temp;
+  t.after(() => {
+    for (const name of tempVariables) {
+      if (savedTemp[name] === undefined) delete process.env[name];
+      else process.env[name] = savedTemp[name];
+    }
+  });
   const workspace = path.join(root, 'workspace');
   const elsewhere = path.join(root, 'elsewhere');
   await fs.mkdir(path.join(workspace, '.toolsengine-runtime'), { recursive: true });
