@@ -95,7 +95,7 @@ test('a browser started before the downloads folder is found tampered with is cl
   const elsewhere = path.join(root, 'elsewhere');
   await fs.mkdir(path.join(workspace, '.toolsengine-runtime'), { recursive: true });
   await fs.mkdir(elsewhere);
-  await fs.symlink(elsewhere, path.join(workspace, '.toolsengine-runtime', 'downloads'), 'dir');
+  await fs.symlink(elsewhere, path.join(workspace, '.toolsengine-runtime', 'downloads'), process.platform === 'win32' ? 'junction' : 'dir');
   const bridge = await createBrowserBridge({ workspace, headless: true, browserExecutable: process.env.TOOLSENGINE_TEST_BROWSER,
     browserSandbox: process.env.TOOLSENGINE_TEST_NO_SANDBOX !== '1' });
   t.after(async () => { await bridge.close(); await fs.rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }); });
