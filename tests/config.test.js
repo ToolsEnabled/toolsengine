@@ -142,20 +142,23 @@ test('a --workspace that does not exist is refused in plain words, not with the 
   assert.doesNotMatch(started.stderr, /ENOENT|lstat/);
 });
 
-test('the workspace and the program folder may not contain one another', async t => {
+test('standalone accepts program ancestors; program descendants and strict plugin overlap are refused', async t => {
   const { PROGRAM_FOLDER, foldersOverlap } = configModule;
   assert.equal(typeof foldersOverlap, 'function', 'src/config.js must refuse a workspace that overlaps the program folder');
   const program = await fs.realpath(PROGRAM_FOLDER);
   assert.equal(program, await fs.realpath(fileURLToPath(new URL('..', import.meta.url))));
-  // The program folder itself, the folder above it, and folders inside it.
-  for (const workspace of [program, path.dirname(program), path.join(program, 'src'), path.join(program, 'node_modules')])
-    await assert.rejects(parseConfig(['--workspace', workspace]), /must not contain one another/, workspace);
+  // Standalone can start in HOME when installed below HOME; it cannot use its own code as workspace.
+  assert.equal((await parseConfig(['--workspace', path.dirname(program), '--no-browser'])).workspace, path.dirname(program));
+  for (const workspace of [program, path.join(program, 'src'), path.join(program, 'node_modules')])
+    await assert.rejects(parseConfig(['--workspace', workspace, '--no-browser']), /must not be the ToolsEngine program folder/, workspace);
+  for (const workspace of [program, path.dirname(program), path.join(program, 'src')])
+    await assert.rejects(parseConfig(['--workspace', workspace, '--no-browser', '--plugin-profile', 'openai']), /must not contain one another/, workspace);
   const outside = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'toolsengine-config-')));
   t.after(() => fs.rm(outside, { recursive: true, force: true }));
   assert.equal((await parseConfig(['--workspace', outside])).workspace, outside);
 
   // The server itself refuses to start that way, with the reason.
-  const started = spawnSync(process.execPath, [path.join(program, 'bin', 'toolsengine.js'), '--workspace', path.dirname(program)], { encoding: 'utf8', timeout: 30000 });
+  const started = spawnSync(process.execPath, [path.join(program, 'bin', 'toolsengine.js'), '--workspace', path.dirname(program), '--no-browser', '--plugin-profile', 'openai'], { encoding: 'utf8', timeout: 30000 });
   assert.equal(started.status, 1);
   assert.match(started.stderr, /^ToolsEngine: --workspace and the ToolsEngine program folder must not contain one another/);
 

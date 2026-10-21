@@ -1,11 +1,11 @@
 {
-  "version": "0.2.0-alpha.1",
+  "version": "0.2.0-alpha.2",
   "count": 27,
   "tools": [
     {
       "name": "workspace.list",
       "title": "List a workspace folder",
-      "description": "List one folder of the workspace: names, types and file sizes, hidden entries included. Symlinks and junctions are not followed and are left out. Returns at most 1,000 entries and scans at most 2,000. Paths inside the browser's own folders in the workspace are refused: .toolsengine-runtime, and the profile folder when --profile-dir names one there.",
+      "description": "List one folder of the workspace: names, types and file sizes, hidden entries included. Symlinks and junctions are not followed and are left out. Returns at most 1,000 entries and scans at most 2,000. Paths inside the browser's own folders in the workspace are refused: .toolsengine-runtime, and the profile folder when --profile-dir names one there. The ToolsEngine program folder is excluded from file access, listing and search.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -33,7 +33,7 @@
     {
       "name": "workspace.read_file",
       "title": "Read a workspace file",
-      "description": "Read one UTF-8 text file from the workspace, up to 1 MiB, with its SHA-256. Any regular file inside the workspace can be read, hidden files such as .env included, so the content can contain secrets that are stored there. Symlinks, junctions and files with more than one hard link are refused, and so are names that Windows cannot use (a colon or another character that Windows forbids, a trailing dot or space, a device name such as aux). Paths inside the browser's own folders in the workspace are refused: .toolsengine-runtime, and the profile folder when --profile-dir names one there.",
+      "description": "Read one UTF-8 text file from the workspace, up to 1 MiB, with its SHA-256. Any regular file inside the workspace can be read, hidden files such as .env included, so the content can contain secrets that are stored there. Symlinks, junctions and files with more than one hard link are refused, and so are names that Windows cannot use (a colon or another character that Windows forbids, a trailing dot or space, a device name such as aux). Paths inside the browser's own folders in the workspace are refused: .toolsengine-runtime, and the profile folder when --profile-dir names one there. The ToolsEngine program folder is excluded from file access, listing and search.",
       "inputSchema": {
         "type": "object",
         "required": [
@@ -57,7 +57,7 @@
     {
       "name": "workspace.write_file",
       "title": "Create or replace a workspace file",
-      "description": "Create a new UTF-8 text file in the workspace, or replace the entire content of an existing one. Replacing destroys the previous content (ToolsEngine keeps no copy) and is allowed only when expectedSha256 equals the SHA-256 that workspace.read_file reports for the file as it is now, so read it first. At most 1 MiB; there is no append or partial edit. The folder must already exist: workspace.write_file does not create folders, so that a mistyped or invented path cannot grow a tree of folders in the person's workspace (workspace.list shows the folders that exist; a new one is for the person to create). Hidden files can be written; symlinks, junctions and files with more than one hard link are refused, and so are names that Windows cannot use (a colon or another character that Windows forbids, a trailing dot or space, a device name such as aux). Paths inside the browser's own folders in the workspace are refused: .toolsengine-runtime, and the profile folder when --profile-dir names one there.",
+      "description": "Create a new UTF-8 text file in the workspace, or replace the entire content of an existing one. Replacing destroys the previous content (ToolsEngine keeps no copy) and is allowed only when expectedSha256 equals the SHA-256 that workspace.read_file reports for the file as it is now, so read it first. At most 1 MiB; there is no append or partial edit. The folder must already exist: workspace.write_file does not create folders, so that a mistyped or invented path cannot grow a tree of folders in the person's workspace (workspace.list shows the folders that exist; a new one is for the person to create). Hidden files can be written; symlinks, junctions and files with more than one hard link are refused, and so are names that Windows cannot use (a colon or another character that Windows forbids, a trailing dot or space, a device name such as aux). Paths inside the browser's own folders in the workspace are refused: .toolsengine-runtime, and the profile folder when --profile-dir names one there. The ToolsEngine program folder is excluded from file access, listing and search.",
       "inputSchema": {
         "type": "object",
         "required": [

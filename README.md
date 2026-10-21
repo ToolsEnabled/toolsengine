@@ -20,6 +20,10 @@ ACL checks and guarded desktop focus/dialog repairs to 0.1.7
 (0.1.3 was the first public release); what changed in each is listed at the end. It offers 27 core tools; attached-browser modes offer 26.
 An explicit Windows desktop option adds four tools for existing signed-in apps.
 
+## Standalone startup from a home folder
+
+Standalone MCP accepts a starting workspace that contains the installation, including your home directory. Workspace tools exclude the ToolsEngine program folder from reads, writes, listing and search; sibling project files remain available. A workspace inside the running program remains refused. Vendor plugin profiles retain their stricter rule that the workspace and program cannot overlap. This is an application-level guard, not an OS sandbox.
+
 ## Codex plugin
 
 Version 0.1.9-rc.1 provides a self-distributed local file/public-web plugin for Codex. See [Codex setup and limits](docs/CODEX.md) and [privacy](PRIVACY.md). The standard MCP connection below also supports explicit browser modes.

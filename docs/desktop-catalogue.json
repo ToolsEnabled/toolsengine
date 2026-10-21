@@ -1,5 +1,5 @@
 {
-  "version": "0.2.0-alpha.1",
+  "version": "0.2.0-alpha.2",
   "condition": "Windows; explicit --desktop-profile-root for current account",
   "tools": [
     {

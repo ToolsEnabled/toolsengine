@@ -15,8 +15,9 @@ export const PROGRAM_FOLDER = fileURLToPath(new URL('..', import.meta.url));
 
 // The assistant can write anywhere in the workspace. If the workspace held
 // the program folder, workspace.write_file could rewrite the server's own
-// code and the Windows helper; if the program folder held the workspace, a
-// workspace such as its src folder would do the same. Both are refused. The
+// code and the Windows helper. Standalone workspace tools now exclude the
+// program itself, so an ancestor (including the user's home) is usable.
+// A workspace inside the program and overlap in the strict plugin remain refused. The
 // two arguments are real paths: links and short names are resolved by then.
 //
 // The paths are compared as text, and then by what the file system says each
@@ -181,8 +182,11 @@ export async function parseConfig(args, { env = process.env } = {}) {
     if (error?.code !== 'ENOENT') throw error;
     throw new Error(`--workspace must name an existing absolute directory. ${path.resolve(config.workspace)} does not exist: create the folder first, or name one that exists.`);
   }
-  if (await foldersOverlap(config.workspace, await fs.realpath(PROGRAM_FOLDER)))
-    throw new Error('--workspace and the ToolsEngine program folder must not contain one another: the assistant can write anywhere in the workspace, and must not be able to change the program. Choose a workspace folder outside it.');
+  const program = await fs.realpath(PROGRAM_FOLDER);
+  if (config.pluginProfile && await foldersOverlap(config.workspace, program))
+    throw new Error('--workspace and the ToolsEngine program folder must not contain one another in a plugin profile. Choose a workspace folder outside it.');
+  if (await folderContains(program, config.workspace))
+    throw new Error('--workspace must not be the ToolsEngine program folder or a folder inside it. Its parent is supported for standalone MCP; program files remain excluded from workspace tools.');
   if (config.desktopLeftHalf && !config.desktopProfileRoot) throw new Error('--desktop-left-half requires --desktop-profile-root.');
   if (config.desktopAllowSignIn && !config.desktopProfileRoot) throw new Error('--desktop-allow-sign-in requires --desktop-profile-root.');
   if (config.desktopProfileRoot) {
