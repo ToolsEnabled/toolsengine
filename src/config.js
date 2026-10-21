@@ -117,7 +117,7 @@ export async function parseConfig(args, { env = process.env } = {}) {
     ['--plugin-profile', 'pluginProfile'], ['--workspace', 'workspace'], ['--profile-dir', 'profileDir'],
     ['--browser-executable', 'browserExecutable'], ['--browser-channel', 'browserChannel'],
     ['--cdp-endpoint', 'cdpEndpoint'],
-    ['--desktop-profile-root', 'desktopProfileRoot'],
+    ['--desktop-profile-root', 'desktopProfileRoot'], ['--tool-names', 'toolNames'],
   ]);
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -139,6 +139,8 @@ export async function parseConfig(args, { env = process.env } = {}) {
     else throw new Error(`Unknown option: ${arg}`);
   }
   if (config.help || config.version) return config;
+  if (config.toolNames !== undefined && !['dotted', 'underscore'].includes(config.toolNames))
+    throw new Error('--tool-names must be dotted or underscore.');
   assertPluginProfile(config);
   if (!config.browser && (config.profileDir || config.cdpEndpoint || config.browserExtension || config.browserExecutable || config.browserChannel || config.firefoxDesktop || config.chromeHidden))
     throw new Error('--no-browser cannot be combined with browser configuration.');

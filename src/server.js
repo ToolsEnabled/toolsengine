@@ -120,6 +120,21 @@ export function findTools(tools, query) {
   };
 }
 
+// Some MCP clients (Grok, for one) admit a tool only when its name has nothing
+// but letters, digits, underscores and hyphens. With --tool-names underscore
+// such a client is shown each name with its dots as underscores. This is
+// presentation only: validation, dispatch and results keep the real name, and
+// only the advertised names are accepted on that connection.
+export function underscoreToolNames(names) {
+  const wire = new Map();
+  for (const name of names) {
+    const shown = name.replaceAll('.', '_');
+    if (wire.has(shown)) throw new Error(`Two tools would both be shown as ${shown}; refusing to guess.`);
+    wire.set(shown, name);
+  }
+  return wire;
+}
+
 // What the assistant is told about this connection at the handshake. It is
 // put together from what the connection really offers: one sentence about
 // sign-ins is true for the server's own temporary browser and false for a
@@ -217,6 +232,7 @@ export function createCallQueue({ maxPending = 8, maxPerMinute = 120, now = Date
 }
 
 export async function createToolsEngine(config, { makeBrowserBridge = createBrowserBridge, makeFirefoxBridge = createFirefoxBrowserBridge } = {}) {
+  const shown = name => config.toolNames === 'underscore' ? name.replaceAll('.', '_') : name;
   assertPluginProfile(config);
   const desktopTools = createDesktopTools(config);
   const browser = config.browser === false ? null : await (config.firefoxDesktop ? makeFirefoxBridge : makeBrowserBridge)(config);
@@ -231,7 +247,7 @@ export async function createToolsEngine(config, { makeBrowserBridge = createBrow
       desktopEnabled: Boolean(config.desktopProfileRoot), desktopLeftHalf: Boolean(config.desktopLeftHalf),
       desktopAllowSignIn: Boolean(config.desktopProfileRoot && config.desktopAllowSignIn),
       workspace: config.workspace, ...browserCapabilityStatus(config, Boolean(browser)),
-      tools: tools.map(t => t.name).sort(), confinement: 'Workspace checks are guardrails, not an operating-system sandbox.' }),
+      tools: tools.map(t => shown(t.name)).sort(), confinement: 'Workspace checks are guardrails, not an operating-system sandbox.' }),
   };
   tools.push(status);
   tools.push({
@@ -240,12 +256,16 @@ export async function createToolsEngine(config, { makeBrowserBridge = createBrow
     // The example is a tool that every connection offers: browser tools are not offered with --no-browser.
     inputSchema: { type: 'object', properties: { query: { type: 'string', minLength: 1, maxLength: 200, description: 'A tool name such as workspace.read_file, or words describing what you want to do.' } }, required: ['query'], additionalProperties: false },
     annotations: { title: 'Find offered tools', readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
-    handler: async ({ query }) => findTools(tools, query),
+    handler: async ({ query }) => {
+      const found = findTools(tools, query);
+      return { ...found, tools: found.tools.map(tool => ({ ...tool, name: shown(tool.name) })) };
+    },
   });
   tools = restrictPluginTools(tools, config.pluginProfile);
   const ajv = new Ajv2020({ strict: false, allErrors: true, useDefaults: true });
   const registry = new Map(tools.map(tool => [tool.name, { ...tool, validate: ajv.compile(tool.inputSchema) }]));
   if (registry.size !== tools.length) throw new Error('Duplicate public tool name.');
+  const wireNames = config.toolNames === 'underscore' ? underscoreToolNames(tools.map(tool => tool.name)) : null;
   const server = new Server({ name: 'toolsengine', version: VERSION }, {
     capabilities: { tools: {} },
     instructions: serverInstructions({
@@ -255,7 +275,7 @@ export async function createToolsEngine(config, { makeBrowserBridge = createBrow
       sandbox: config.browserSandbox !== false,
     }),
   });
-  server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: tools.map(({ handler, ...descriptor }) => descriptor) }));
+  server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: tools.map(({ handler, ...descriptor }) => ({ ...descriptor, name: shown(descriptor.name) })) }));
   const queue = createCallQueue();
   let closing = false;
   let closePromise;
@@ -275,7 +295,11 @@ export async function createToolsEngine(config, { makeBrowserBridge = createBrow
     }
   }
   const call = (name, supplied, { signal } = {}) => queue.submit(runningSignal => execute(name,supplied,runningSignal), signal);
-  server.setRequestHandler(CallToolRequestSchema, (request, extra) => call(request.params.name, request.params.arguments, { signal: extra.signal }));
+  server.setRequestHandler(CallToolRequestSchema, (request, extra) => {
+    const name = wireNames ? wireNames.get(request.params.name) : request.params.name;
+    if (!name) return { isError: true, content: [{ type: 'text', text: `Tool is not offered: ${request.params.name}` }] };
+    return call(name, request.params.arguments, { signal: extra.signal });
+  });
   return { server, tools, call, close() {
     closing = true;
     return closePromise ||= (async () => {
