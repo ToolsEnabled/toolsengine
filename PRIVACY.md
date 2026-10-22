@@ -23,3 +23,11 @@ its own downloads and sign-ins, outside the Chromium artifact quotas, until you
 close its owned browser and remove its dedicated profile. Closing the MCP
 connection detaches the helper and preserves that browser/profile for reuse.
 See [private Firefox](docs/hidden-firefox.md) for prerequisites and limitations.
+
+The optional Linux `browser.show` tool (with `--private-display` or
+`--firefox-hidden`) shows the hidden browser in a window on your screen
+through TigerVNC programs on this computer only: a Unix socket in a private
+folder, a random password per showing, no network port, no shared clipboard.
+Nothing is sent anywhere; the folder and password are removed when the window
+closes. While the window is shown, your clicks and keys reach the browser the
+assistant uses. See [showing the hidden browser](docs/browser-show-hide.md).

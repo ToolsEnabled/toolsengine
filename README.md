@@ -7,6 +7,13 @@ Optional Linux Firefox UI control is documented in
 private display and a separate profile, preserves the browser sandbox, and
 does not copy passwords or cookies from your everyday browser.
 
+On Linux, Chrome and Edge with `--private-display`, and Firefox with
+`--firefox-hidden`, offer `browser.show`, `browser.hide` and
+`browser.visibility`. Show the live browser when the person needs to sign in
+or take over, then hide it without restarting the browser or losing its
+session. See [browser show/hide](docs/browser-show-hide.md) for setup,
+including a local dependency installation without administrator access.
+
 A separate local MCP server for browser automation, workspace files and public
 web reading on Windows and Linux. Version 0.1.8 adds native Windows installer
 ACL checks and guarded desktop focus/dialog repairs to 0.1.7
@@ -365,6 +372,7 @@ third-party packages inside them are listed, each with its licence text, in
 | Area | Offered capability |
 | --- | --- |
 | Browser | Navigate/back, snapshot/find, click/type/fill, keys/select/hover/drag, tabs/dialogs/wait, screenshot/PDF, upload, resize page viewport, close the whole dedicated browser |
+| Browser view (Linux, `--private-display` or `--firefox-hidden`) | Show the hidden browser live in a window on the person's screen, where they can watch and use it; hide it again; say whether it is shown |
 | Workspace | List, UTF-8 read, create or replace a whole file, bounded literal search |
 | Web | Public HTTPS GET, bounded HTML text/link extraction |
 | Discovery | Runtime status and ranked search of the actual offered tools |
@@ -398,6 +406,9 @@ destructive, idempotent, open-world). What the descriptions say about effects:
   passes such files and folders by and counts them as `nonPortableNames`.
 - `desktop.pointer` moves the person's real mouse cursor, and
   `desktop.capture` returns whatever the window shows, unredacted.
+- `browser.show` puts a window on the person's screen that shows the hidden
+  browser live, and the person's clicks and keys in it reach the same pages;
+  `browser.hide` closes it. Neither restarts or reloads the browser.
 
 [The exact schemas](docs/tool-catalogue.json) are generated from the dispatcher;
 [the Windows desktop schemas](docs/desktop-catalogue.json) from the same
@@ -423,6 +434,25 @@ result before retrying.
 The default is a new headless Chromium session with a dedicated ephemeral
 profile. It does not share an ordinary browser's login state. `--headed` opens
 its window.
+
+### Hidden while the assistant works, shown when you ask (`--private-display`)
+
+On Linux, `--private-display` runs ToolsEngine's own Chromium with real
+windows on a private, authenticated X display that nobody sees: nothing
+appears on your screen and nothing takes your focus. `browser.show` then opens
+a window on your screen showing that same browser, live; you can watch it and
+click and type in it, for example to sign in. `browser.hide` (or closing the
+window) hides it again, and `browser.visibility` says whether it is shown. The
+browser is never restarted or reloaded: the same tabs, pages, cookies and
+sign-ins stay, and the browser tools go on working throughout. The hidden
+Firefox mode (`--firefox-hidden`) offers the same three tools.
+
+The window is TigerVNC's viewer, connected to TigerVNC's scraping server over
+a private, password-protected Unix socket: no network port is opened and the
+clipboard is not shared. It needs `xvfb`, `tigervnc-scraping-server` and
+`tigervnc-viewer` (Debian and Ubuntu package names), and an X11 or XWayland
+display. Windows and macOS are not supported. Details, the security design
+and the limits: [docs/browser-show-hide.md](docs/browser-show-hide.md).
 Use `browser.snapshot` for inline page content and element references; some
 action responses link to snapshot artifacts instead. Output files stay inside
 the selected workspace, and a file name given to a tool is refused when it
@@ -896,6 +926,14 @@ TOOLSENGINE_TEST_NO_SANDBOX=1 npm test                         # Playwright's Ch
 On Windows, set `TOOLSENGINE_TEST_BROWSER` to the path of the installed
 Chrome or Edge in the same way.
 
+`tests/browser-view.integration.test.js` checks `browser.show` and
+`browser.hide` with the real programs, on two private Xvfb displays, one of
+which stands in for the person's screen; it never uses the display the tests
+were started from. It needs Xvfb, xdotool, xwininfo and TigerVNC;
+`TOOLSENGINE_TEST_VNC_ROOT` may name an unpacked `usr` folder of the TigerVNC
+packages. Its hidden-Firefox check also needs `TOOLSENGINE_FIREFOX_LIVE=1`. On
+Linux the release build requires all three of its checks to pass.
+
 `npm run build:release` runs the whole suite first and builds nothing unless
 every test passes and the browser tests ran: a run in which they were skipped
 does not count. The build has no option to leave the tests out.
@@ -917,6 +955,9 @@ The Windows installer requires a fixed local NTFS volume. It checks drive type b
   desktop input.
 - Browser tests are headless; where a headed window appears on screen is not
   automated or checked.
+- `browser.show` and `browser.hide` are checked on private Xvfb displays
+  without a window manager, with TigerVNC 1.13.1, Google Chrome and Firefox;
+  not yet on a person's real desktop with a window manager, nor under XWayland.
 - ToolsEngine ships no browser extension of its own. `--browser-extension`
   uses Microsoft's Playwright Extension, installed by the person from the
   Chrome Web Store, and its tests use stand-ins: a real signed-in Chrome or
@@ -939,6 +980,16 @@ The Windows installer requires a fixed local NTFS volume. It checks drive type b
 The browser dependency is pinned to Playwright MCP 0.0.83 and its matching
 Playwright 1.64.0-alpha build. Changing this pin requires rerunning schema,
 lifecycle and browser tests; upstream tools never become public automatically.
+
+## Changes after 0.1.9-rc.1 (unreleased)
+
+- New, Linux: `browser.show`, `browser.hide` and `browser.visibility` show the
+  hidden browser live in a window on the person's screen, where they can
+  watch and use it, and hide it again, without restarting or reloading it.
+  Offered with the new startup option `--private-display` (ToolsEngine's own
+  Chromium, headed on a private authenticated Xvfb) and in `--firefox-hidden`.
+  The default headless mode and its tool list are unchanged. See
+  [docs/browser-show-hide.md](docs/browser-show-hide.md).
 
 ## Responsive layout checks (new in 0.1.3)
 

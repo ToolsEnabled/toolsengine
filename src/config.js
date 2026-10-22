@@ -107,6 +107,7 @@ export async function parseConfig(args, { env = process.env } = {}) {
   const values = new Map([
     ['--plugin-profile', 'pluginProfile'], ['--workspace', 'workspace'], ['--profile-dir', 'profileDir'],
     ['--browser-executable', 'browserExecutable'], ['--browser-channel', 'browserChannel'],
+    ['--browser-view-runtime', 'browserViewRuntime'],
     ['--cdp-endpoint', 'cdpEndpoint'],
     ['--desktop-profile-root', 'desktopProfileRoot'],
   ]);
@@ -124,14 +125,29 @@ export async function parseConfig(args, { env = process.env } = {}) {
     else if (arg === '--desktop-allow-sign-in') config.desktopAllowSignIn = true;
     else if (arg === '--browser-extension') config.browserExtension = true;
     else if (arg === '--firefox-desktop' || arg === '--firefox-hidden') config.firefoxDesktop = true;
+    else if (arg === '--private-display') config.privateDisplay = true;
     else if (arg === '--help' || arg === '-h') config.help = true;
     else if (arg === '--version') config.version = true;
     else throw new Error(`Unknown option: ${arg}`);
   }
   if (config.help || config.version) return config;
   assertPluginProfile(config);
-  if (!config.browser && (config.profileDir || config.cdpEndpoint || config.browserExtension || config.browserExecutable || config.browserChannel || config.firefoxDesktop))
+  if (config.browserViewRuntime) {
+    if (!config.browser || (!config.privateDisplay && !config.firefoxDesktop))
+      throw new Error('--browser-view-runtime requires --private-display or --firefox-hidden.');
+    config.browserViewRuntime = await plainDirectory(config.browserViewRuntime);
+  }
+  if (!config.browser && (config.profileDir || config.cdpEndpoint || config.browserExtension || config.browserExecutable || config.browserChannel || config.firefoxDesktop || config.privateDisplay))
     throw new Error('--no-browser cannot be combined with browser configuration.');
+  // --private-display runs ToolsEngine's own Chromium on a private X display
+  // that nobody sees, so that browser.show can show it to the person and
+  // browser.hide can hide it again (src/private-display.js, browser-view.js).
+  if (config.privateDisplay) {
+    if (process.platform !== 'linux') throw new Error('--private-display currently requires Linux with X11 (Xvfb). On this system the browser runs headless, or in a window with --headed.');
+    if (config.firefoxDesktop) throw new Error('--firefox-hidden already runs Firefox on a private display and offers browser.show and browser.hide there; --private-display is for ToolsEngine\'s own Chromium. Choose one.');
+    if (config.cdpEndpoint || config.browserExtension) throw new Error('--private-display applies only to a browser that ToolsEngine starts itself; a browser attached with --cdp-endpoint or --browser-extension keeps its own windows.');
+    if (config.headless === false) throw new Error('Choose --headed (the browser in a window on your own screen) or --private-display (hidden, shown on request with browser.show), not both.');
+  }
   if (config.firefoxDesktop) {
     if (process.platform !== 'linux') throw new Error('--firefox-hidden currently requires Linux.');
     if (config.profileDir || config.cdpEndpoint || config.browserExtension || config.browserExecutable || config.browserChannel || config.desktopProfileRoot || config.browserSandbox === false)

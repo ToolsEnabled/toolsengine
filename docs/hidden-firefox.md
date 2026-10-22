@@ -23,6 +23,13 @@ authorization file. An unrelated X socket is never adopted. No TCP listener is
 started, and no virtual-machine fallback is claimed. Failure to establish the
 private display is reported without moving input to the visible screen.
 
+`browser.show` opens a window on the person's screen that shows this private
+display live, where they can watch and use the hidden Firefox (for example to
+sign in), and `browser.hide` closes it; Firefox is not restarted or reloaded.
+`browser.visibility` says whether it is shown. These need TigerVNC's scraping
+server and viewer; see [showing the hidden browser](browser-show-hide.md).
+The other Firefox tools never use the visible screen, shown or not.
+
 Firefox's content sandbox remains enabled. On Ubuntu, launching the installed
 snap-mounted Firefox binary requires the already-installed `firefox` AppArmor
 profile to permit its user namespaces. The helper uses that existing profile
