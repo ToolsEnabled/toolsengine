@@ -13,6 +13,8 @@ import {
 import { startAgentBrowser } from './firefox-profile.js';
 import { transferUserFirefoxProfile, loadFleetSettings, fleetProfileTransferAllowed, locateUserFirefoxProfile } from './firefox-profile-transfer.js';
 import { validateBrowserLayout } from './config.js';
+import { createBrowserView, browserViewTools, displayNumber } from './browser-view.js';
+import os from 'node:os';
 
 // Navigation accepts web URLs; internal, file, script and credential URLs
 // are outside this dedicated-profile mode.
@@ -57,7 +59,8 @@ const COMMITTING = new Set(['click', 'key', 'navigate', 'upload', 'open_tab', 's
 
 // The helper owns a dedicated profile and a private display. It remains in
 // the caller's execution context; it never starts an implicit host escape.
-export async function createFirefoxBrowserBridge(config = {}, { spawnHelper = spawn, timeout = requestTimeout } = {}) {
+export async function createFirefoxBrowserBridge(config = {}, options = {}) {
+  const { spawnHelper = spawn, timeout = requestTimeout } = options;
   const visibleDisplay = Object.prototype.hasOwnProperty.call(config, 'visibleDisplay')
     ? config.visibleDisplay
     : (process.env.DISPLAY ?? null);
@@ -202,12 +205,41 @@ export async function createFirefoxBrowserBridge(config = {}, { spawnHelper = sp
       handler:async()=>({content:[{type:'image',data:(await request({op:'screenshot'})).image,mimeType:'image/png'}]}),
     },
   ];
+  // browser.show, browser.hide and browser.visibility show this private
+  // display to the person and hide it again (browser-view.js). They act on
+  // the person's screen, not in the hidden window, so they are a family of
+  // their own (viewTools) beside the tools above, none of which uses the
+  // visible screen. Showing starts Firefox first if it is not running.
+  const personDisplay = typeof options.personDisplay === 'function' ? options.personDisplay
+    : options.personDisplay ? () => options.personDisplay
+      : () => ({ display: visibleDisplay ?? undefined, xauthority: process.env.XAUTHORITY, wayland: process.env.WAYLAND_DISPLAY });
+  const view = createBrowserView({
+    runtimeRoot: config.workspace ? path.join(config.workspace, '.toolsengine-runtime', 'tmp') : os.tmpdir(),
+    personDisplay, programs: options.viewPrograms, programRoot: config.browserViewRuntime,
+    privateDisplay: async () => {
+      await request({ op: 'windows' });
+      const found = await request({ op: 'display' });
+      // The helper names the display; it must be a private display of this
+      // profile, not the person's, with the profile's own cookie file.
+      const auth = typeof found?.xauthority === 'string' ? found.xauthority : '';
+      if (!displayNumber(found?.display) || displayNumber(found.display) === displayNumber(visibleDisplay)
+        || path.dirname(auth) !== path.resolve(agentProfileDir) || !path.basename(auth).startsWith('.toolsengine-xauthority-'))
+        throw new Error('The hidden Firefox display could not be identified.');
+      const stat = await fs.lstat(auth);
+      if (!stat.isFile() || stat.uid !== process.getuid() || (stat.mode & 0o077)) throw new Error('The hidden Firefox display\'s cookie file is not private.');
+      return { display: found.display, xauthority: auth };
+    },
+  });
+  const viewTools = browserViewTools(view, { subject: 'the hidden Firefox window' });
   return {
     tools,
+    viewTools,
+    viewState: () => view.state(),
+    view,
     session,
     binding,
     agentProfileDir,
     importedUserProfile: false,
-    close: async () => { helper.stdin.end(); helper.kill(); fail(new Error('Firefox adapter closed.')); lines.close(); },
+    close: async () => { await view.close().catch(() => {}); helper.stdin.end(); helper.kill(); fail(new Error('Firefox adapter closed.')); lines.close(); },
   };
 }

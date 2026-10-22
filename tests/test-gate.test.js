@@ -104,6 +104,27 @@ test('the Windows-only XDG skip has one exact identity and cannot replace requir
   }
 });
 
+test('the browser.show and browser.hide checks cannot be omitted on Linux or skipped elsewhere under an altered identity', () => {
+  const raw = fs.readFileSync(new URL('../tools/test-gate.js', import.meta.url), 'utf8');
+  const pure = raw.slice(raw.indexOf('export const BROWSER_TESTS_DID_NOT_RUN'), raw.indexOf('// Run every test file sequentially')).replace(/^export /gm, '');
+  const load = platform => vm.runInNewContext(pure + ';({judgeTestRun,REQUIRED_BROWSER_SUCCESSES,VIEW_LIVE_TESTS,VIEW_PLATFORM_SKIP})', {process:{platform}});
+  const linux=load('linux'),win=load('win32');
+  assert.ok(gate.VIEW_LIVE_TESTS.every(name => linux.REQUIRED_BROWSER_SUCCESSES.includes(name)));
+  assert.ok(gate.VIEW_LIVE_TESTS.every(name => !win.REQUIRED_BROWSER_SUCCESSES.includes(name)));
+  // The test file gives exactly these names and this platform reason.
+  const source = fs.readFileSync(new URL('./browser-view.integration.test.js', import.meta.url), 'utf8');
+  assert.ok(source.includes(`'${gate.VIEW_PLATFORM_SKIP}'`));
+  for (const name of gate.VIEW_LIVE_TESTS) assert.ok(source.includes(JSON.stringify(name).slice(1, -1).replace(/'/g, "\\'")) || source.includes(name), name);
+  const evidence=win.REQUIRED_BROWSER_SUCCESSES.map((name,index)=>`ok ${index+10} - ${name}`).join('\n');
+  const rows=win.VIEW_LIVE_TESTS.map((name,index)=>`ok ${index+1} - ${name} # SKIP ${win.VIEW_PLATFORM_SKIP}`).join('\n');
+  const output=(file,text=rows)=>`# File: ${file}\n${text}\n${evidence}\n${summary(10,6,0,4)}`;
+  assert.equal(win.judgeTestRun({status:0,output:output('tests/browser-view.integration.test.js')}).ok,true);
+  assert.equal(linux.judgeTestRun({status:0,output:output('tests/browser-view.integration.test.js')}).ok,false);
+  assert.equal(win.judgeTestRun({status:0,output:output('tests/browser.integration.test.js')}).ok,false);
+  assert.equal(win.judgeTestRun({status:0,output:output('tests/browser-view.integration.test.js',rows.replace(win.VIEW_PLATFORM_SKIP,'TigerVNC is missing'))}).ok,false);
+  assert.equal(win.judgeTestRun({status:0,output:output('tests/browser-view.integration.test.js',rows.replace(' # SKIP',' altered # SKIP'))}).ok,false);
+});
+
 test('the Firefox release check cannot be omitted on Linux or skipped under an altered platform identity', () => {
   const raw = fs.readFileSync(new URL('../tools/test-gate.js', import.meta.url), 'utf8');
   const pure = raw.slice(raw.indexOf('export const BROWSER_TESTS_DID_NOT_RUN'), raw.indexOf('// Run every test file sequentially')).replace(/^export /gm, '');

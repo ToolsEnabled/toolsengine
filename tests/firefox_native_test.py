@@ -617,4 +617,35 @@ class UploadTests(GuardedTest):
         with patch.object(adapter,'choosers',return_value=[]), patch.object(adapter,'CHOOSER_WAIT',0.05):
             with self.assertRaisesRegex(ValueError,'No file chooser is open'):REAL_OPEN_CHOOSER()
 
+class HiddenDisplayForShowTests(unittest.TestCase):
+    # browser.show asks the helper which display to show. Only the agent
+    # profile's own attested display, with its private cookie file, is named.
+    def setUp(self):
+        self.profile=tempfile.mkdtemp()
+        self.auth=os.path.join(self.profile,'.toolsengine-xauthority-0123456789abcdef')
+        fd=os.open(self.auth,os.O_CREAT|os.O_EXCL|os.O_WRONLY,0o600);os.close(fd)
+        self.patches=[patch.object(adapter,'AGENT_MODE',True),patch.object(adapter,'AGENT_PROFILE',self.profile),
+                      patch.object(adapter,'VISIBLE_DISPLAY',':0'),patch.object(adapter,'ensure_agent_display',lambda:':90'),
+                      patch.dict(os.environ,{'DISPLAY':':90','XAUTHORITY':self.auth})]
+        for item in self.patches:item.start()
+    def tearDown(self):
+        for item in reversed(self.patches):item.stop()
+        import shutil;shutil.rmtree(self.profile,ignore_errors=True)
+    def request(self):
+        return adapter.dispatch({'op':'display','sessionTarget':'hidden-window','display':':90','profile':self.profile})
+    def test_the_agent_display_and_its_cookie_file_are_named(self):
+        self.assertEqual(self.request(),{'display':':90','xauthority':self.auth})
+    def test_the_visible_display_another_cookie_or_an_open_cookie_file_are_refused(self):
+        with patch.dict(os.environ,{'DISPLAY':':0'}):
+            with self.assertRaisesRegex(ValueError,'visible display|could not be identified'):self.request()
+        other=os.path.join(tempfile.mkdtemp(),'.toolsengine-xauthority-0123456789abcdef')
+        fd=os.open(other,os.O_CREAT|os.O_EXCL|os.O_WRONLY,0o600);os.close(fd)
+        with patch.dict(os.environ,{'XAUTHORITY':other}):
+            with self.assertRaisesRegex(ValueError,'could not be identified'):self.request()
+        os.chmod(self.auth,0o644)
+        with self.assertRaisesRegex(ValueError,'could not be identified'):self.request()
+    def test_outside_agent_mode_no_display_is_offered(self):
+        with patch.object(adapter,'AGENT_MODE',False):
+            with self.assertRaisesRegex(ValueError,'Only the hidden Firefox display'):adapter.dispatch({'op':'display'})
+
 unittest.main()

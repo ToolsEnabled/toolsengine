@@ -1410,6 +1410,17 @@ def operate(req):
         ensure_agent_display()
     if op == 'windows':
         return [{'id': w, 'title': f.get_name(), 'pid': pid} for w, f, pid in firefox_windows()]
+    if op == 'display':
+        # browser.show attaches its viewer to this private display. Only the
+        # agent's own attested Xvfb is named, never the user's visible display.
+        if not AGENT_MODE:
+            raise ValueError('Only the hidden Firefox display can be shown.')
+        display, auth = os.environ.get('DISPLAY', ''), os.environ.get('XAUTHORITY', '')
+        if (display_number(display) is None or display_number(display) == display_number(VISIBLE_DISPLAY)
+                or not Path(auth).name.startswith('.toolsengine-xauthority-')
+                or Path(auth).parent != Path(AGENT_PROFILE) or not private_regular(auth)):
+            raise ValueError('The hidden Firefox display could not be identified.')
+        return {'display': display, 'xauthority': auth}
     if op == 'select_window':
         selected = req['target']
         window()

@@ -9,6 +9,7 @@ import { createDesktopTools } from './desktop.js';
 import { VERSION } from './config.js';
 import { createFirefoxBrowserBridge } from './firefox.js';
 import { agentBrowserStatus, agentFirefoxInstructions } from './browser-session.js';
+import { VIEW_INSTRUCTIONS } from './browser-view.js';
 
 export function browserCapabilityStatus(config, enabled) {
   if (!enabled) return {
@@ -60,15 +61,18 @@ export function browserCapabilityStatus(config, enabled) {
     browserConnectionVerified: false,
     browserAuthenticationVerified: false,
   };
-  const headless = config.headless !== false;
+  const headless = config.headless !== false && !config.privateDisplay;
   return {
     browserEnabled: true,
     browserMode: config.profileDir ? 'dedicated-persistent' : 'isolated',
     browserSession: config.profileDir ? 'dedicated-persistent-profile' : 'dedicated-ephemeral-profile',
     browserLaunchState: 'not-probed',
     headless,
-    browserWindowMode: headless ? 'headless' : 'headed',
-    browserWindowVisibility: headless ? 'not-visible' : 'visible-when-launched',
+    // --private-display: headed on a private display that nobody sees until
+    // browser.show shows it; browserView (system.status) says whether it is.
+    browserWindowMode: config.privateDisplay ? 'private-display' : headless ? 'headless' : 'headed',
+    browserWindowVisibility: config.privateDisplay ? 'hidden-until-shown' : headless ? 'not-visible' : 'visible-when-launched',
+    ...(config.privateDisplay ? { browserUsesVisibleScreen: false } : {}),
     browserAuthSharing: config.profileDir ? 'dedicated-profile-only' : 'none',
     // The setting the server asks for when it starts a browser: on unless the
     // server was started with --no-browser-sandbox. It is a request, not an
@@ -129,12 +133,13 @@ const BROWSER_INSTRUCTIONS = Object.freeze({
 // sandbox: false only when the server was started with --no-browser-sandbox.
 // The assistant is then told that its browser has no sandbox: nothing else
 // in the tool list would show it.
-export function serverInstructions({ browser, desktop, sandbox = true, desktopAllowSignIn = false }) {
+export function serverInstructions({ browser, desktop, sandbox = true, desktopAllowSignIn = false, view = false }) {
   if (!Object.hasOwn(BROWSER_INSTRUCTIONS, browser)) throw new Error(`Unknown browser mode: ${browser}`);
   const ownBrowser = browser === 'temporary' || browser === 'dedicated';
   return [
     `ToolsEngine gives this connection a workspace folder of files, a reader for public web pages${browser === 'none' ? '' : ', a browser'}${desktop ? ' and the Windows desktop' : ''}.`,
     BROWSER_INSTRUCTIONS[browser],
+    ...(view && browser !== 'none' ? [VIEW_INSTRUCTIONS] : []),
     ...(ownBrowser && sandbox === false ? ['This server was started with --no-browser-sandbox, by the person\'s choice: its browser runs without Chromium\'s sandbox, so a page that exploits a fault in the browser can act as the person\'s account. Open only addresses the person asked for or that their task needs.'] : []),
     ...(browser === 'none' ? [] : [
       'Take a browser.snapshot before acting on a page.',
@@ -211,7 +216,10 @@ export async function createToolsEngine(config, { makeBrowserBridge = createBrow
   assertPluginProfile(config);
   const desktopTools = createDesktopTools(config);
   const browser = config.browser === false ? null : await (config.firefoxDesktop ? makeFirefoxBridge : makeBrowserBridge)(config);
-  let tools = [...await createWorkspaceTools(config), ...await createWebTools(config), ...(browser?.tools || []), ...desktopTools];
+  // browser.show, browser.hide and browser.visibility (browser?.viewTools)
+  // act on the person's screen, not in the hidden browser, and are kept apart
+  // from the browser tools for that reason.
+  let tools = [...await createWorkspaceTools(config), ...await createWebTools(config), ...(browser?.tools || []), ...(browser?.viewTools || []), ...desktopTools];
   const status = {
     name: 'system.status', title: 'ToolsEngine status',
     description: 'Read ToolsEngine version, platform, workspace, offered capabilities and configured browser session type. Does not launch a browser or verify a browser connection or authentication. browserSandbox is the setting the server asks for when it starts a browser, not a check of a running browser.',
@@ -222,6 +230,7 @@ export async function createToolsEngine(config, { makeBrowserBridge = createBrow
       desktopEnabled: Boolean(config.desktopProfileRoot), desktopLeftHalf: Boolean(config.desktopLeftHalf),
       desktopAllowSignIn: Boolean(config.desktopProfileRoot && config.desktopAllowSignIn),
       workspace: config.workspace, ...browserCapabilityStatus(config, Boolean(browser)),
+      ...(browser?.viewState ? { browserView: browser.viewState() } : {}),
       tools: tools.map(t => t.name).sort(), confinement: 'Workspace checks are guardrails, not an operating-system sandbox.' }),
   };
   tools.push(status);
@@ -244,6 +253,7 @@ export async function createToolsEngine(config, { makeBrowserBridge = createBrow
       desktop: desktopTools.length > 0,
       desktopAllowSignIn: config.desktopAllowSignIn === true,
       sandbox: config.browserSandbox !== false,
+      view: Boolean(browser?.viewTools?.length),
     }),
   });
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: tools.map(({ handler, ...descriptor }) => descriptor) }));

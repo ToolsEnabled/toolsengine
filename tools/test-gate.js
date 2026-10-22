@@ -18,6 +18,15 @@ export const BROWSER_TESTS_DID_NOT_RUN = Object.freeze([
 ]);
 
 export const FIREFOX_LIVE_TEST = 'hidden Firefox types and clicks on its authenticated private display without importing user credentials';
+// browser.show and browser.hide with the real programs (tests/browser-view.integration.test.js).
+// On Linux they must pass; elsewhere they are skipped with exactly this reason.
+export const VIEW_LIVE_TESTS = Object.freeze([
+  'the view channel is a private Unix socket with a password, for one viewer, and no network port',
+  "ToolsEngine's Chromium on its private display: hidden, shown to the person who uses it, hidden again with the same live page",
+  'hidden Firefox: shown to the person who clicks in it, hidden again with the same live page',
+  "over stdio, --private-display offers browser.show, keeps the browser off the person's screen, and shows it or names what is missing",
+]);
+export const VIEW_PLATFORM_SKIP = 'browser.show and browser.hide require Linux';
 export const REQUIRED_BROWSER_SUCCESSES = Object.freeze([
   'real Chromium navigation, form interaction, snapshot, screenshot and PDF',
   'explicit CDP attachment lists tabs and disconnects without closing the browser',
@@ -25,7 +34,7 @@ export const REQUIRED_BROWSER_SUCCESSES = Object.freeze([
   'in an attached browser a download is left to that browser:',
   'actual stdio MCP resizes real browser desktop/mobile',
   'a browser with a dedicated profile (--profile-dir) is started sandboxed as well',
-  ...(process.platform === 'linux' ? [FIREFOX_LIVE_TEST] : []),
+  ...(process.platform === 'linux' ? [FIREFOX_LIVE_TEST, ...VIEW_LIVE_TESTS] : []),
 ]);
 
 // The test files whose tests open a page in a browser or attach to one. A
@@ -40,6 +49,7 @@ export const BROWSER_TEST_FILES = Object.freeze([
   'tests/browser-sandbox.integration.test.js',
   'tests/browser-temp.integration.test.js',
   'tests/browser-tools.integration.test.js',
+  'tests/browser-view.integration.test.js',
   'tests/browser.integration.test.js',
   'tests/resize.integration.test.js',
   'tests/review-live.integration.test.js',
@@ -72,7 +82,11 @@ export function unrecognisedBrowserSkips(text) {
       && file === 'tests/firefox-live.linux.test.js'
       && skip[1].trim() === FIREFOX_LIVE_TEST
       && reason === 'Firefox mode requires Linux';
-    if (!xdgPlatformSkip && !firefoxPlatformSkip && !KNOWN_BROWSER_SKIPS.some(words => reason.startsWith(words))) found.push({ file, name: skip[1].trim(), reason });
+    const viewPlatformSkip = process.platform !== 'linux'
+      && file === 'tests/browser-view.integration.test.js'
+      && VIEW_LIVE_TESTS.includes(skip[1].trim())
+      && reason === VIEW_PLATFORM_SKIP;
+    if (!xdgPlatformSkip && !firefoxPlatformSkip && !viewPlatformSkip && !KNOWN_BROWSER_SKIPS.some(words => reason.startsWith(words))) found.push({ file, name: skip[1].trim(), reason });
   }
   return found;
 }
