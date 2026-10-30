@@ -104,6 +104,27 @@ test('the Windows-only XDG skip has one exact identity and cannot replace requir
   }
 });
 
+test('the browser.show and browser.hide checks cannot be omitted on Linux or skipped elsewhere under an altered identity', () => {
+  const raw = fs.readFileSync(new URL('../tools/test-gate.js', import.meta.url), 'utf8');
+  const pure = raw.slice(raw.indexOf('export const BROWSER_TESTS_DID_NOT_RUN'), raw.indexOf('// Run every test file sequentially')).replace(/^export /gm, '');
+  const load = platform => vm.runInNewContext(pure + ';({judgeTestRun,REQUIRED_BROWSER_SUCCESSES,VIEW_LIVE_TESTS,VIEW_PLATFORM_SKIP})', {process:{platform}});
+  const linux=load('linux'),win=load('win32');
+  assert.ok(gate.VIEW_LIVE_TESTS.every(name => linux.REQUIRED_BROWSER_SUCCESSES.includes(name)));
+  assert.ok(gate.VIEW_LIVE_TESTS.every(name => !win.REQUIRED_BROWSER_SUCCESSES.includes(name)));
+  // The test file gives exactly these names and this platform reason.
+  const source = fs.readFileSync(new URL('./browser-view.integration.test.js', import.meta.url), 'utf8');
+  assert.ok(source.includes(`'${gate.VIEW_PLATFORM_SKIP}'`));
+  for (const name of gate.VIEW_LIVE_TESTS) assert.ok(source.includes(JSON.stringify(name).slice(1, -1).replace(/'/g, "\\'")) || source.includes(name), name);
+  const evidence=win.REQUIRED_BROWSER_SUCCESSES.map((name,index)=>`ok ${index+10} - ${name}`).join('\n');
+  const rows=win.VIEW_LIVE_TESTS.map((name,index)=>`ok ${index+1} - ${name} # SKIP ${win.VIEW_PLATFORM_SKIP}`).join('\n');
+  const output=(file,text=rows)=>`# File: ${file}\n${text}\n${evidence}\n${summary(10,6,0,4)}`;
+  assert.equal(win.judgeTestRun({status:0,output:output('tests/browser-view.integration.test.js')}).ok,true);
+  assert.equal(linux.judgeTestRun({status:0,output:output('tests/browser-view.integration.test.js')}).ok,false);
+  assert.equal(win.judgeTestRun({status:0,output:output('tests/browser.integration.test.js')}).ok,false);
+  assert.equal(win.judgeTestRun({status:0,output:output('tests/browser-view.integration.test.js',rows.replace(win.VIEW_PLATFORM_SKIP,'TigerVNC is missing'))}).ok,false);
+  assert.equal(win.judgeTestRun({status:0,output:output('tests/browser-view.integration.test.js',rows.replace(' # SKIP',' altered # SKIP'))}).ok,false);
+});
+
 test('the Firefox release check cannot be omitted on Linux or skipped under an altered platform identity', () => {
   const raw = fs.readFileSync(new URL('../tools/test-gate.js', import.meta.url), 'utf8');
   const pure = raw.slice(raw.indexOf('export const BROWSER_TESTS_DID_NOT_RUN'), raw.indexOf('// Run every test file sequentially')).replace(/^export /gm, '');
@@ -117,4 +138,27 @@ test('the Firefox release check cannot be omitted on Linux or skipped under an a
   assert.equal(linux.judgeTestRun({status:0,output:evidence+'\n'+summary(6,6,0,0)}).ok,false);
   for(const changed of [{...row,file:'tests/browser.integration.test.js'},{...row,name:row.name+' altered'},{...row,reason:row.reason+' extra'}])
     assert.equal(win.judgeTestRun({status:0,output:output(changed)}).ok,false);
+});
+
+test('opaque Firefox credential handoff is a required Linux release proof', () => {
+  const required=gate.FIREFOX_SECRET_LIVE_TEST;
+  if(process.platform==='linux')assert(gate.REQUIRED_BROWSER_SUCCESSES.includes(required));
+  assert(gate.BROWSER_TEST_FILES.includes('tests/firefox-secure-live.linux.test.js'));
+  const source=fs.readFileSync(new URL('./firefox-secure-live.linux.test.js',import.meta.url),'utf8');
+  assert(source.includes(required));
+  const missing=gate.REQUIRED_BROWSER_SUCCESSES.filter(name=>name!==required).map((name,i)=>`ok ${i+1} - ${name}`).join('\n');
+  if(process.platform==='linux')assert.equal(gate.judgeTestRun({status:0,output:missing+'\n'+summary(gate.REQUIRED_BROWSER_SUCCESSES.length-1,gate.REQUIRED_BROWSER_SUCCESSES.length-1,0,0)}).ok,false);
+});
+
+test('native Chrome release evidence requires the actual approved extension workflow', () => {
+  const raw = fs.readFileSync(new URL('../tools/test-gate.js', import.meta.url), 'utf8');
+  const pure = raw.slice(raw.indexOf('export const BROWSER_TESTS_DID_NOT_RUN'), raw.indexOf('// Run every test file sequentially')).replace(/^export /gm, '');
+  for (const platform of ['linux', 'win32']) {
+    const model = vm.runInNewContext(pure + ';({judgeTestRun,REQUIRED_BROWSER_SUCCESSES,CHROME_LIVE_TEST})', {process:{platform}});
+    const emit = names => names.map((name, i) => 'ok ' + (i + 1) + ' - ' + name).join('\n') + '\n' + summary(names.length, names.length, 0, 0);
+    assert.equal(model.judgeTestRun({ status: 0, output: emit(model.REQUIRED_BROWSER_SUCCESSES) }).ok, true);
+    const partial = model.REQUIRED_BROWSER_SUCCESSES.filter(name => name !== model.CHROME_LIVE_TEST);
+    partial.push(model.CHROME_LIVE_TEST.replace(' through its approved extension', ''));
+    assert.equal(model.judgeTestRun({ status: 0, output: emit(partial) }).ok, false);
+  }
 });

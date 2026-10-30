@@ -1,9 +1,11 @@
 #!/usr/bin/python3
-"""Bounded Firefox-only AT-SPI UI adapter. No profile or credential access."""
+"""Bounded Firefox-only AT-SPI UI; no profile or credential-store access."""
 import base64
 import io
 import fcntl
 import secrets
+import select
+from xml.sax.saxutils import escape as xml_escape
 import tempfile
 import json
 import os
@@ -15,45 +17,201 @@ import time
 import uuid
 from collections import Counter
 from pathlib import Path
-def adopt_owner_bus():
-    # The hidden Firefox registers on the owner's session bus. A fleet worker
-    # often has no bus of its own; without this, AT-SPI looks at an empty bus
-    # and reports that the running agent window is not exposed.
-    if os.environ.get('DBUS_SESSION_BUS_ADDRESS') and os.environ.get('XDG_RUNTIME_DIR'):
-        return
-    target = os.environ.get('TOOLSENGINE_BROWSER_TARGET', '')
-    if target != 'hidden-window' or not os.environ.get('TOOLSENGINE_FIREFOX_PROFILE'):
-        return
-    uid = os.getuid()
-    for entry in Path('/proc').iterdir():
-        if not entry.name.isdigit():
-            continue
+import importlib.util
+_secret_spec = importlib.util.spec_from_file_location('toolsengine_firefox_secrets', Path(__file__).with_name('firefox_secrets.py'))
+_secret_module = importlib.util.module_from_spec(_secret_spec)
+_secret_spec.loader.exec_module(_secret_module)
+secret_vault = _secret_module.SecretVault()
+sensitive_sources = set()
+# Hidden mode keeps the agent Firefox off the person's desktop session bus.
+# There it would hand its file chooser, print dialog, notifications and
+# external links to the desktop portal and the notifier, which draw them on
+# the person's screen. Instead it gets a session bus of its own, shared only
+# with this helper, on which nothing can be started: no portal, no notifier,
+# no other service. Its accessibility bus is private too (AT-SPI must reach
+# Firefox there): the desktop's accessibility bus launcher is not used, since
+# it may start services through the person's systemd session. What the
+# accessibility bus starts (its registry) has no display or Wayland connection
+# and a private runtime folder. Like the private display, the buses stay up
+# after this helper exits; a receipt in the profile lets the next helper
+# rejoin them, and buses whose daemon has gone are replaced.
+BUS_VARIABLES = ('DBUS_SESSION_BUS_ADDRESS', 'DBUS_STARTER_ADDRESS', 'DBUS_STARTER_BUS_TYPE', 'AT_SPI_BUS_ADDRESS')
+BUS_PREFIX = 'toolsengine-bus-'
+ACCESSIBILITY_CONFIGS = ('/etc/at-spi2/accessibility.conf', '/usr/share/defaults/at-spi2/accessibility.conf')
+SESSION_CONFIG = """<!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-Bus Bus Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd">
+<busconfig>
+  <type>session</type>
+  <listen>{listen}</listen>
+  <auth>EXTERNAL</auth>
+  <!-- The standard session bus policy; AT-SPI does not work without it. -->
+  <policy context="default">
+    <allow send_destination="*" eavesdrop="true"/>
+    <allow eavesdrop="true"/>
+    <allow own="*"/>
+  </policy>
+</busconfig>
+"""
+private_bus = {'address': None, 'accessibility': None, 'error': None}
+# The bus daemons outlive this helper on purpose; holding them here keeps
+# Python from reporting them as abandoned subprocesses.
+_bus_daemons = []
+
+def _private_folder(path):
+    info = Path(path).lstat()
+    return stat.S_ISDIR(info.st_mode) and info.st_uid == os.getuid() and not info.st_mode & 0o077
+
+def _bus_bases(profile):
+    runtime = os.environ.get('XDG_RUNTIME_DIR', '')
+    bases = []
+    try:
+        if runtime and os.path.isabs(runtime) and _private_folder(runtime):
+            bases.append(Path(runtime))
+    except OSError:
+        pass
+    return bases + [profile]
+
+def _own_bus_folder(folder, profile):
+    # Only a folder this helper made: named so, private, directly in a base.
+    try:
+        folder = Path(folder)
+        return (folder.is_absolute() and folder.name.startswith(BUS_PREFIX)
+                and folder.parent in _bus_bases(profile) and _private_folder(folder))
+    except (OSError, TypeError, ValueError):
+        return False
+
+def _live_daemon(entry, socket):
+    try:
+        if not isinstance(entry, dict) or not isinstance(entry.get('pid'), int) or entry.get('address') != 'unix:path=' + str(socket):
+            return False
+        proc = Path('/proc', str(entry['pid']))
+        args = (proc / 'cmdline').read_bytes().decode().split('\0')
+        return (proc.stat().st_uid == os.getuid() and process_birth(entry['pid']) == entry.get('birth')
+                and Path(os.readlink(proc / 'exe')).name == 'dbus-daemon'
+                and '--address=' + entry['address'] in args and stat.S_ISSOCK(socket.lstat().st_mode))
+    except (OSError, UnicodeError, IndexError, TypeError):
+        return False
+
+def _live_buses(saved, profile):
+    if not isinstance(saved, dict) or not _own_bus_folder(saved.get('folder'), profile):
+        return False
+    folder = Path(saved['folder'])
+    return _live_daemon(saved.get('session'), folder / 'bus') and _live_daemon(saved.get('accessibility'), folder / 'a11y')
+
+def _start_daemon(daemon, config, socket, env, folder, started):
+    address = 'unix:path=' + str(socket)
+    proc = subprocess.Popen([daemon, '--config-file=' + str(config), '--nofork', '--nopidfile', '--address=' + address, '--print-address=1'],
+                            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                            env=env, cwd=str(folder), start_new_session=True, text=True)
+    started.append(proc)
+    _bus_daemons.append(proc)
+    ready = proc.stdout.readline().strip() if select.select([proc.stdout], [], [], 5)[0] else ''
+    proc.stdout.close()
+    if not ready.startswith(address):
+        raise ValueError('A private Firefox bus could not be started; the desktop session bus was not used.')
+    return {'pid': proc.pid, 'birth': process_birth(proc.pid), 'address': address}
+
+def start_private_bus():
+    """Hidden mode: join or start the agent Firefox's own session and accessibility buses."""
+    profile = Path(AGENT_PROFILE)
+    if not profile.is_dir() or profile.is_symlink() or profile.stat().st_uid != os.getuid():
+        raise ValueError('The dedicated Firefox profile must be a plain directory owned by this account.')
+    daemon = shutil.which('dbus-daemon')
+    accessibility = next((path for path in ACCESSIBILITY_CONFIGS if os.path.isfile(path)), None)
+    if not daemon or not accessibility:
+        raise ValueError('Hidden Firefox requires dbus-daemon and AT-SPI (at-spi2-core) for its private buses; it was not started on the desktop session bus.')
+    lock = profile / '.toolsengine-bus.lock'
+    fd = os.open(lock, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+    try:
+        if not private_regular(lock):
+            raise ValueError('The private Firefox bus lock is unsafe.')
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        receipt = profile / '.toolsengine-bus.json'
+        saved = None
         try:
-            if entry.stat().st_uid != uid or (entry / 'comm').read_text().strip() != 'gnome-shell':
+            if private_regular(receipt):
+                saved = json.loads(receipt.read_text())
+        except (OSError, ValueError):
+            saved = None
+        if _live_buses(saved, profile):
+            return saved['session']['address'], saved['accessibility']['address']
+        if isinstance(saved, dict):
+            for key in ('session', 'accessibility'):
+                entry = saved.get(key)
+                if _own_bus_folder(saved.get('folder'), profile) and _live_daemon(entry, Path(saved['folder']) / ('bus' if key == 'session' else 'a11y')):
+                    os.kill(entry['pid'], 15)
+            if _own_bus_folder(saved.get('folder'), profile):
+                shutil.rmtree(saved['folder'], ignore_errors=True)
+        folder = Path(tempfile.mkdtemp(prefix=BUS_PREFIX, dir=_bus_bases(profile)[0]))
+        (folder / 'session.conf').write_text(SESSION_CONFIG.replace('{listen}', xml_escape('unix:path=' + str(folder / 'bus'))))
+        env = {key: value for key, value in os.environ.items()
+               if key not in BUS_VARIABLES + SERVICE_VARIABLES + ('DISPLAY', 'XAUTHORITY', 'WAYLAND_DISPLAY')}
+        env['XDG_RUNTIME_DIR'] = str(folder)
+        env['GTK_USE_PORTAL'] = '0'
+        started = []
+        try:
+            session = _start_daemon(daemon, folder / 'session.conf', folder / 'bus', env, folder, started)
+            # The registry it starts finds this bus through AT_SPI_BUS_ADDRESS.
+            a11y = _start_daemon(daemon, accessibility, folder / 'a11y', {**env, 'DBUS_SESSION_BUS_ADDRESS': session['address'],
+                                 'AT_SPI_BUS_ADDRESS': 'unix:path=' + str(folder / 'a11y')}, folder, started)
+        except BaseException:
+            for proc in started:
+                if proc.poll() is None:
+                    proc.terminate()
+                    proc.wait(timeout=3)
+            shutil.rmtree(folder, ignore_errors=True)
+            raise
+        saved = {'folder': str(folder), 'session': session, 'accessibility': a11y}
+        with tempfile.NamedTemporaryFile(mode='w', dir=profile, delete=False) as stream:
+            json.dump(saved, stream)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(stream.name, receipt)
+        return session['address'], a11y['address']
+    finally:
+        os.close(fd)
+
+def require_private_bus():
+    if private_bus['error'] or not private_bus['address']:
+        raise ValueError(private_bus['error'] or 'The private Firefox session bus is not available; the desktop session bus is never used.')
+    return private_bus['address'], private_bus['accessibility']
+
+def foreign_bus_firefox():
+    # An agent Firefox that an earlier ToolsEngine started on another session
+    # bus (the desktop's) cannot be driven here, and its dialogs would reach
+    # the person's screen. It is reported, not reused or closed.
+    for proc in Path('/proc').iterdir():
+        try:
+            if not proc.name.isdigit() or not firefox_pid(proc.name):
                 continue
-            found = {}
-            for item in (entry / 'environ').read_bytes().split(b'\0'):
-                if b'=' not in item:
-                    continue
-                key, value = item.split(b'=', 1)
-                found[key.decode()] = value.decode()
-        except (OSError, UnicodeError):
+            found = dict(item.split('=', 1) for item in (proc / 'environ').read_bytes().decode().split('\0') if '=' in item)
+        except (OSError, UnicodeError, ValueError):
             continue
-        bus = found.get('DBUS_SESSION_BUS_ADDRESS')
-        runtime = found.get('XDG_RUNTIME_DIR')
-        if bus and not os.environ.get('DBUS_SESSION_BUS_ADDRESS'):
-            os.environ['DBUS_SESSION_BUS_ADDRESS'] = bus
-        if runtime and not os.environ.get('XDG_RUNTIME_DIR'):
-            os.environ['XDG_RUNTIME_DIR'] = runtime
-        return
+        if found.get('DBUS_SESSION_BUS_ADDRESS') != private_bus['address']:
+            return int(proc.name)
+    return None
 
-adopt_owner_bus()
+def agent_bus_ready():
+    require_private_bus()
+    stale = foreign_bus_firefox()
+    if stale:
+        raise ValueError(f'The hidden Firefox (process {stale}) was started by an earlier ToolsEngine on another session bus, '
+                         'where its dialogs can reach the person\'s screen. Quit that Firefox; the next browser call starts it on its private bus.')
 
-import gi
-gi.require_version('Atspi', '2.0')
-from gi.repository import Atspi, GLib
+def use_private_bus():
+    # Before AT-SPI is loaded: this helper and the agent Firefox both use the
+    # private buses. Without them, no bus is used at all, never the desktop's.
+    for name in BUS_VARIABLES:
+        os.environ.pop(name, None)
+    try:
+        private_bus['address'], private_bus['accessibility'] = start_private_bus()
+        os.environ['DBUS_SESSION_BUS_ADDRESS'] = private_bus['address']
+        os.environ['AT_SPI_BUS_ADDRESS'] = private_bus['accessibility']
+    except Exception as error:
+        private_bus['error'] = str(error)[:500] or 'The private Firefox session bus could not be started.'
+        os.environ['DBUS_SESSION_BUS_ADDRESS'] = 'disabled:'
+        os.environ['AT_SPI_BUS_ADDRESS'] = 'disabled:'
 
-Atspi.set_timeout(1500, 1500)
 receipts = {}
 selected = None
 tab_receipts = {}
@@ -165,6 +323,15 @@ def private_regular(path):
     info = Path(path).lstat()
     return stat.S_ISREG(info.st_mode) and info.st_uid == os.getuid() and info.st_nlink == 1 and not info.st_mode & 0o077
 
+if AGENT_MODE:
+    use_private_bus()
+
+import gi
+gi.require_version('Atspi', '2.0')
+from gi.repository import Atspi, GLib
+
+Atspi.set_timeout(1500, 1500)
+
 def claim_hidden_display(disp, auth):
     os.environ['DISPLAY'] = disp
     os.environ['XAUTHORITY'] = str(auth)
@@ -172,6 +339,13 @@ def claim_hidden_display(disp, auth):
     global _agent_display_ready
     _agent_display_ready = True
     return disp
+
+def display_lock_pid(number):
+    # The X server writes its process id into the display's lock file.
+    try:
+        return int(Path(f'/tmp/.X{number}-lock').read_text().strip())
+    except (OSError, ValueError):
+        return None
 
 def ensure_agent_display():
     """Use only a live Xvfb attested for this profile, with private Xauthority."""
@@ -239,7 +413,10 @@ def ensure_agent_display():
                                     start_new_session=True)
             deadline = time.monotonic() + 3
             while time.monotonic() < deadline and proc.poll() is None:
-                if os.path.exists(f'/tmp/.X11-unix/X{number}'):
+                # Another helper may start an Xvfb on the same free number at
+                # the same moment; the display is ours only when its lock
+                # names our Xvfb. The other Xvfb exits and the next number is tried.
+                if os.path.exists(f'/tmp/.X11-unix/X{number}') and display_lock_pid(number) == proc.pid:
                     saved = {'pid': proc.pid, 'birth': process_birth(proc.pid),
                              'display': disp, 'auth': auth.name}
                     with tempfile.NamedTemporaryFile(mode='w', dir=profile, delete=False) as stream:
@@ -283,6 +460,16 @@ def agent_firefox_command():
         }
     return firefox_binary(), {}
 
+# AT-SPI 2.62 names the button role "button" where earlier releases said
+# "push button". Every role this helper reads comes through here, so
+# snapshots, the actionable-role checks and browser.find_control use the one
+# established name on either version.
+ROLE_NAMES = {'button': 'push button'}
+
+def role_of(obj):
+    role = obj.get_role_name()
+    return ROLE_NAMES.get(role, role)
+
 def children(obj):
     return [obj.get_child_at_index(i) for i in range(min(obj.get_child_count(), 2000))]
 
@@ -310,7 +497,7 @@ def windows():
             if not firefox_pid(pid):
                 continue
             for index, frame in enumerate(children(app)):
-                if frame.get_role_name() in ('frame', 'dialog'):
+                if role_of(frame) in ('frame', 'dialog'):
                     result.append((f'{pid}:{index}', frame, pid))
         except Exception:
             continue
@@ -338,6 +525,27 @@ def desktop_session():
             continue
     return None
 
+# The agent Firefox keeps its dialogs to itself, on its private display, where
+# browser.show shows them with the page: its own file chooser and print
+# preview instead of the desktop portal's, its own notification windows instead
+# of the desktop notifier, downloads saved without a prompt, and no hand-off of
+# a link or a downloaded file to another application.
+HIDDEN_DIALOG_PREFS = tuple(f'user_pref("{name}", {value});\n' for name, value in (
+    ('widget.use-xdg-desktop-portal.file-picker', 0),
+    ('widget.use-xdg-desktop-portal.mime-handler', 0),
+    ('widget.use-xdg-desktop-portal.open-uri', 0),
+    ('widget.use-xdg-desktop-portal.settings', 0),
+    ('widget.use-xdg-desktop-portal.location', 0),
+    ('widget.use-xdg-desktop-portal.native-messaging', 0),
+    ('alerts.useSystemBackend', 'false'),
+    ('print.prefer_system_dialog', 'false'),
+    ('print.tab_modal.enabled', 'true'),
+    ('network.protocol-handler.external-default', 'false'),
+    ('browser.download.useDownloadDir', 'true'),
+    ('browser.download.always_ask_before_handling_new_types', 'false'),
+    ('browser.download.open_pdf_attachments_inline', 'true'),
+))
+
 def ensure_agent_accessibility(profile):
     # A fresh profile does not expose a window to AT-SPI until this is forced.
     # The pref lives only in the agent profile, never the user's Firefox profile.
@@ -352,6 +560,7 @@ def ensure_agent_accessibility(profile):
         'user_pref("browser.startup.page", 0);\n',
         'user_pref("browser.aboutwelcome.enabled", false);\n',
         'user_pref("toolkit.startup.max_resumed_crashes", -1);\n',
+        *HIDDEN_DIALOG_PREFS,
     )
     try:
         current = pref.read_text() if pref.exists() else ''
@@ -420,13 +629,11 @@ def start_agent_firefox(*arguments, purpose):
     env.pop('NO_AT_BRIDGE', None)
     env['MOZ_APP_REMOTINGNAME'] = 'toolsengine-agent-firefox'
     env['MOZ_DISABLE_AUTO_SAFE_MODE'] = '1'
-    if not env.get('DBUS_SESSION_BUS_ADDRESS'):
-        # Stay on the owner's accessibility bus. Do not copy that session's DISPLAY.
-        session = desktop_session() or {}
-        if session.get('DBUS_SESSION_BUS_ADDRESS'):
-            env['DBUS_SESSION_BUS_ADDRESS'] = session['DBUS_SESSION_BUS_ADDRESS']
-        if session.get('XDG_RUNTIME_DIR') and not env.get('XDG_RUNTIME_DIR'):
-            env['XDG_RUNTIME_DIR'] = session['XDG_RUNTIME_DIR']
+    # Only the private session bus (use_private_bus), never the desktop's.
+    for name in BUS_VARIABLES:
+        env.pop(name, None)
+    env['DBUS_SESSION_BUS_ADDRESS'], env['AT_SPI_BUS_ADDRESS'] = require_private_bus()
+    env['GTK_USE_PORTAL'] = '0'
     # Ubuntu's installed Firefox AppArmor profile grants the user namespace
     # permission required by Firefox's own content sandbox. Keep that sandbox
     # on even when using the same vendor binary from its snap mount.
@@ -471,7 +678,7 @@ def page_tabs_in(frames):
             if level > 8:
                 return
             try:
-                role = obj.get_role_name()
+                role = role_of(obj)
             except Exception:
                 return
             if role == 'page tab':
@@ -507,6 +714,7 @@ def firefox_windows():
     # The hidden window is usable when its selected tab is the requested page,
     # not Firefox's crash-restore tab. This does not start a second process
     # when that Firefox is already running.
+    agent_bus_ready()
     started = not firefox_running()
     if started:
         start_firefox(purpose='started')
@@ -544,7 +752,7 @@ def window():
     return match
 
 def protected(obj):
-    return obj.get_role_name() == 'password text'
+    return role_of(obj) == 'password text'
 
 def x_windows(pid):
     candidates = []
@@ -913,9 +1121,9 @@ def label(text):
 
 def option_list(control):
     # A native <select>: drop-down lists keep their options in a menu child.
-    role = control.get_role_name()
+    role = role_of(control)
     if role == 'combo box':
-        holder = next((c for c in children(control) if c.get_role_name() == 'menu'), None)
+        holder = next((c for c in children(control) if role_of(c) == 'menu'), None)
     elif role == 'list box' and control.get_attributes().get('tag') == 'select':
         holder = control
     else:
@@ -925,7 +1133,7 @@ def option_list(control):
     items = []
     def collect(obj, level):
         for child in children(obj):
-            if child.get_role_name() in OPTION_ROLES:
+            if role_of(child) in OPTION_ROLES:
                 items.append(child)
             elif level < 2:  # <optgroup>
                 collect(child, level + 1)
@@ -1037,7 +1245,7 @@ def snapshot(depth=30):
             states = obj.get_state_set()
             if states.contains(Atspi.StateType.DEFUNCT):
                 return
-            role = obj.get_role_name()
+            role = role_of(obj)
             if role in ('document web', 'document frame', 'menu', 'menu bar') and not states.contains(Atspi.StateType.SHOWING):
                 return
             if protected(obj):
@@ -1099,7 +1307,7 @@ def resolve(ref):
         raise ValueError('Unknown/stale reference; request a fresh snapshot.')
     obj, wid, role, name, at = receipts[ref]
     if (time.monotonic() - at > 90 or window()[0] != wid
-            or obj.get_role_name() != role or obj.get_name() != name
+            or role_of(obj) != role or obj.get_name() != name
             or protected(obj) or obj.get_state_set().contains(Atspi.StateType.DEFUNCT)):
         raise ValueError('Stale or protected control; request a fresh snapshot.')
     return obj
@@ -1115,16 +1323,16 @@ def actionable(obj):
             if ai.get_action_name(i).lower() in ACTIONS:
                 return target, ai, i
         target = target.get_parent()
-        if target is None or target.get_role_name() in ('document web', 'document frame', 'frame', 'application'):
+        if target is None or role_of(target) in ('document web', 'document frame', 'frame', 'application'):
             break
     raise ValueError('No supported accessibility action on this element or its ancestors; nothing was done.')
 
 def action(obj):
-    if obj.get_role_name() == 'combo box' and option_list(obj) is not None:
+    if role_of(obj) == 'combo box' and option_list(obj) is not None:
         raise ValueError('This is a drop-down list; set it with browser.select_option and the visible name of the option.')
     target, ai, index = actionable(obj)
     # Described before acting: after a submit, the page and its accessibles may be gone.
-    where = '' if target is obj else f' on the nearest actionable ancestor ({target.get_role_name()} {json.dumps(target.get_name() or "", ensure_ascii=False)})'
+    where = '' if target is obj else f' on the nearest actionable ancestor ({role_of(target)} {json.dumps(target.get_name() or "", ensure_ascii=False)})'
     # Popovers can immediately dismiss when an accessibility click is sent
     # to a background window. Activate before delivery, never afterwards.
     xid = focus()
@@ -1147,7 +1355,7 @@ def chrome_entry(frame):
         obj, level = stack.pop()
         seen += 1
         try:
-            role = obj.get_role_name()
+            role = role_of(obj)
             if role in ('document web', 'document frame') or level > 25:
                 continue
             obj_states = obj.get_state_set()
@@ -1197,7 +1405,7 @@ def tab_list():
         def collect(obj, level=0):
             if level > 10:
                 return
-            role = obj.get_role_name()
+            role = role_of(obj)
             if role in ('document web', 'document frame'):
                 return
             if role == 'page tab':
@@ -1291,7 +1499,7 @@ def choosers():
             if not portal and not (firefox_pid(pid) if AGENT_MODE else owner(pid)):
                 continue
             for frame in children(app):
-                role = frame.get_role_name()
+                role = role_of(frame)
                 if (role == 'file chooser' or (portal and role in ('dialog', 'frame', 'window'))) \
                         and not frame.get_state_set().contains(Atspi.StateType.DEFUNCT):
                     found.append((frame, pid))
@@ -1333,7 +1541,7 @@ def focused_text(frame):
         obj, level = stack.pop()
         seen += 1
         try:
-            role = obj.get_role_name()
+            role = role_of(obj)
             # The location entry is never inside the file list.
             if level > 30 or role in ('list', 'list box', 'table', 'tree', 'tree table', 'grid'):
                 continue
@@ -1348,6 +1556,8 @@ def upload(path):
     if path is not None:
         upload_path(path)
     drain()
+    if AGENT_MODE:
+        agent_bus_ready()
     frame, pid, xid = open_chooser()
     activate(frame, pid, 'The file chooser')
     if path is None:
@@ -1402,14 +1612,250 @@ def require_hidden_action(req):
         raise ValueError('Refusing a Firefox profile other than the agent hidden-window profile.')
 
 
+class CredentialFailure(ValueError):
+    """Fixed public diagnostic with no provider text or credential value."""
+
+
+def _credential_document_once(expected_origin):
+    """Identify only the visible top-level document of this owned Firefox window."""
+    expected = _secret_module.exact_origin(expected_origin)
+    _, frame, _ = window()
+    found, stack, count = [], [(frame, 0)], 0
+    while stack and count < 4000:
+        obj, depth = stack.pop()
+        count += 1
+        if depth > 30:
+            continue
+        role = role_of(obj)
+        if role == 'document frame':
+            # Firefox chrome includes a visible about:blank document frame
+            # (for example its sidebar). It is not the selected web document.
+            continue
+        if role == 'document web':
+            if fresh_states(obj).contains(Atspi.StateType.SHOWING):
+                doc = obj.get_document_iface()
+                url = doc.get_document_attribute_value('DocURL') if doc else None
+                try:
+                    actual = _secret_module.origin(url)
+                except ValueError:
+                    scheme = _secret_module.urlsplit(url or '').scheme
+                    scheme = scheme if scheme in ('about', 'file', 'data', 'moz-extension') else 'unavailable'
+                    raise CredentialFailure('The selected document has no supported web origin (scheme: ' + scheme + ').') from None
+                if actual != expected:
+                    raise CredentialFailure('The selected page origin does not match; no credential was read or entered.')
+                found.append(obj)
+            # Never cross into subframes, hidden tabs or Firefox chrome.
+            continue
+        stack.extend((child, depth + 1) for child in children(obj))
+    if len(found) != 1:
+        raise CredentialFailure('Exactly one visible top-level web document is required.')
+    return found[0]
+
+
+def credential_document(expected_origin, wait=0):
+    # Navigation returns after Enter, before Firefox commits its new document.
+    # Only initial capture/fill may wait; every subsequent delivery check fails
+    # immediately on a changed origin or document.
+    deadline = time.monotonic() + wait
+    while True:
+        try:
+            return _credential_document_once(expected_origin)
+        except ValueError:
+            if time.monotonic() >= deadline:
+                raise
+            pump(0.1)
+
+
+def credential_nodes(document):
+    stack, count, started = [(document, 0)], 0, time.monotonic()
+    while stack:
+        if count >= 4000 or time.monotonic() - started > 8:
+            raise CredentialFailure('Credential page inspection exceeded its bounds; no input was sent.')
+        obj, depth = stack.pop()
+        count += 1
+        if depth > 35:
+            continue
+        role = role_of(obj)
+        if obj is not document and role in ('document web', 'document frame'):
+            continue
+        if fresh_states(obj).contains(Atspi.StateType.DEFUNCT):
+            continue
+        yield obj
+        stack.extend((child, depth + 1) for child in reversed(children(obj)))
+
+
+def credential_text(obj, seen, depth=0):
+    # Firefox represents inline DOM children as U+FFFC. Resolve them locally,
+    # preserving document order without ever reading a password control.
+    if obj in seen or depth > 4 or protected(obj):
+        return ''
+    if not fresh_states(obj).contains(Atspi.StateType.SHOWING):
+        return ''
+    ti = obj.get_text_iface() if 'Text' in obj.get_interfaces() else None
+    if ti is None:
+        return ''
+    seen.add(obj)
+    text = Atspi.Text.get_text(ti, 0, min(Atspi.Text.get_character_count(ti), 40000)) or ''
+    if '\uFFFC' not in text:
+        return text
+    kids = iter(children(obj))
+    parts = []
+    for char in text:
+        child = next(kids, None) if char == '\uFFFC' else None
+        if child is not None and role_of(child) not in ('document web', 'document frame'):
+            parts.append(credential_text(child, seen, depth + 1))
+        else:
+            parts.append(char if child is None else '')
+    return ''.join(parts)
+
+
+def capture_credential(req):
+    drain()
+    pump(0.35)
+    document = credential_document(req['sourceOrigin'], wait=3)
+    texts, size, seen = [], 0, set()
+    for obj in credential_nodes(document):
+        if protected(obj) or not fresh_states(obj).contains(Atspi.StateType.SHOWING):
+            continue
+        text = credential_text(obj, seen)
+        size += len(text)
+        if size > 200000:
+            raise CredentialFailure('Credential source exceeded its text bound.')
+        texts.append(text)
+    # Revalidate origin after collection, before retaining anything.
+    if credential_document(req['sourceOrigin']) != document:
+        raise CredentialFailure('Credential source changed; capture cancelled.')
+    sensitive_sources.add((req['sourceOrigin'], document.get_document_iface().get_document_attribute_value('DocURL')))
+    return secret_vault.capture(texts, req['label'], req['destinationOrigin'], req.get('expiresInSeconds', 120))
+
+
+def find_named_control(req):
+    """Locate a known non-sensitive action without observing private page text."""
+    if req['role'] not in ('push button', 'toggle button', 'link'):
+        raise CredentialFailure('Only named button and link actions are offered by private control lookup.')
+    drain()
+    pump(0.35)
+    document = credential_document(req['origin'], wait=3)
+    deadline = time.monotonic() + 3
+    while True:
+        matches = []
+        for obj in credential_nodes(document):
+            if role_of(obj) != req['role']:
+                continue
+            if fresh_states(obj).contains(Atspi.StateType.SHOWING) and obj.get_name() == req['name']:
+                obj.get_interfaces()
+                matches.append(obj)
+        if len(matches) != 1:
+            raise CredentialFailure('Exactly one visible control must match the supplied name and role.')
+        try:
+            # Firefox can expose the name before its action interface is ready.
+            # Wait for an actionable reference without revealing a page snapshot
+            # or issuing any input. Never retry a click here.
+            actionable(matches[0])
+            break
+        except ValueError:
+            if time.monotonic() >= deadline:
+                raise CredentialFailure('The matching control has no supported accessibility action.') from None
+            pump(0.1)
+            if credential_document(req['origin']) != document:
+                raise CredentialFailure('The private source changed during control lookup.') from None
+    wid, _, _ = window()
+    ref = 'f' + uuid.uuid4().hex[:12]
+    receipts[ref] = (matches[0], wid, req['role'], req['name'], time.monotonic())
+    return {'ref': ref, 'found': True}
+
+
+def credential_source_visible():
+    for source_origin, url in sensitive_sources:
+        try:
+            document = credential_document(source_origin)
+        except ValueError:
+            continue
+        if document.get_document_iface().get_document_attribute_value('DocURL') == url:
+            return True
+    return False
+
+
+def fill_credential(req):
+    # One-use even on wrong origin, focus loss or failed delivery. No auto-submit.
+    value = secret_vault.consume(req['handle'], req['destinationOrigin'])
+    sent = False
+    try:
+        drain()
+        pump(0.35)
+        document = credential_document(req['destinationOrigin'], wait=3)
+        fields = [obj for obj in credential_nodes(document) if protected(obj)
+                  and fresh_states(obj).contains(Atspi.StateType.SHOWING)
+                  and fresh_states(obj).contains(Atspi.StateType.ENABLED)]
+        if len(fields) != 1:
+            raise CredentialFailure('Exactly one visible enabled password field is required; no credential was entered.')
+        field = fields[0]
+        xid = give_focus(field)
+        if interrupted(field, xid) or credential_document(req['destinationOrigin']) != document:
+            raise CredentialFailure('Credential target lost focus or changed; no credential was entered.')
+        # Typed via stdin: never argv, environment, a file, clipboard or MCP text.
+        # No value readback. Clear the selected password field before input.
+        send(['xdotool', 'key', '--clearmodifiers', 'ctrl+a', 'BackSpace'])
+        if interrupted(field, xid) or credential_document(req['destinationOrigin']) != document:
+            raise CredentialFailure('Credential target changed after clearing; no credential was entered.')
+        note_input(commit=True)
+        sent = True
+        offset = 0
+        failed = False
+        while offset < len(value):
+            if (not protected(field) or interrupted(field, xid)
+                    or credential_document(req['destinationOrigin']) != document):
+                failed = True
+                break
+            end = min(offset + 16, len(value))
+            while end < len(value) and value[end] & 0xC0 == 0x80:
+                end += 1
+            chunk = value[offset:end]
+            try:
+                result = subprocess.run(['xdotool', 'type', '--clearmodifiers', '--delay', '5', '--file', '-'],
+                                        input=chunk, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
+            finally:
+                secret_vault.wipe(chunk)
+            if result.returncode:
+                failed = True
+                break
+            offset = end
+        # An OS delivery result is not a claim that the website accepted a login.
+        if failed or interrupted(field, xid):
+            return {'entered': None, 'submitted': False, 'handleConsumed': True,
+                    'outcome': 'Input delivery uncertain; inspect the page before any new credential attempt.'}
+        return {'entered': True, 'submitted': False, 'handleConsumed': True,
+                'outcome': 'Credential input delivered without reading its value. Sign-in acceptance remains unverified.'}
+    except Exception:
+        # Providers/process errors can include sensitive text. Never propagate it.
+        if sent:
+            return {'entered': None, 'submitted': False, 'handleConsumed': True,
+                    'outcome': 'Input delivery uncertain; inspect the page before any new credential attempt.'}
+        raise CredentialFailure('Credential target could not be verified; handle consumed and no credential input sent.') from None
+    finally:
+        secret_vault.wipe(value)
+
+
 def operate(req):
     global selected
     op = req['op']
+    secret_vault.expire()
     if AGENT_MODE:
         require_hidden_action(req)
         ensure_agent_display()
     if op == 'windows':
         return [{'id': w, 'title': f.get_name(), 'pid': pid} for w, f, pid in firefox_windows()]
+    if op == 'display':
+        # browser.show attaches its viewer to this private display. Only the
+        # agent's own attested Xvfb is named, never the user's visible display.
+        if not AGENT_MODE:
+            raise ValueError('Only the hidden Firefox display can be shown.')
+        display, auth = os.environ.get('DISPLAY', ''), os.environ.get('XAUTHORITY', '')
+        if (display_number(display) is None or display_number(display) == display_number(VISIBLE_DISPLAY)
+                or not Path(auth).name.startswith('.toolsengine-xauthority-')
+                or Path(auth).parent != Path(AGENT_PROFILE) or not private_regular(auth)):
+            raise ValueError('The hidden Firefox display could not be identified.')
+        return {'display': display, 'xauthority': auth}
     if op == 'select_window':
         selected = req['target']
         window()
@@ -1434,7 +1880,29 @@ def operate(req):
     if op == 'open_tab':
         return open_tab(req['url'])
     if op == 'snapshot':
-        return snapshot(req.get('depth', 30))
+        if credential_source_visible():
+            receipts.clear()
+            return 'The selected page is a captured credential source; its content is withheld for this connection.'
+        return secret_vault.redact(snapshot(req.get('depth', 30)))
+    if op == 'capture_credential':
+        try:
+            return capture_credential(req)
+        except (CredentialFailure, _secret_module.SecretError):
+            raise
+        except Exception:
+            # Accessibility providers may embed source text in their exceptions.
+            raise ValueError('Private credential capture failed: source origin, page readiness or unique label could not be verified. No value was returned.') from None
+    if op == 'find_control':
+        try:
+            return find_named_control(req)
+        except CredentialFailure:
+            raise
+        except Exception:
+            raise ValueError('Private control lookup failed; no page contents were returned.') from None
+    if op == 'fill_credential':
+        return fill_credential(req)
+    if op == 'revoke_credential':
+        return secret_vault.revoke(req['handle'])
     if op == 'click':
         return action(resolve(req['ref']))
     if op == 'type':
@@ -1450,6 +1918,8 @@ def operate(req):
     if op == 'upload':
         return upload(req.get('path'))
     if op == 'screenshot':
+        if secret_vault.redactions or credential_source_visible():
+            raise ValueError('Screenshots are unavailable while captured credentials remain sensitive; wait for their lifetime to end.')
         focus()
         _, frame, _ = window()
         rect = frame.get_component_iface().get_extents(Atspi.CoordType.SCREEN)
@@ -1488,7 +1958,8 @@ def main():
         except Exception as e:
             response = {'id': request.get('id') if isinstance(request, dict) else None,
                         'error': str(e)[:2000]}
-        print(json.dumps(response, ensure_ascii=False), flush=True)
+        print(json.dumps(secret_vault.sanitize(response), ensure_ascii=False), flush=True)
+    secret_vault.clear()
 
 if __name__ == '__main__':
     main()

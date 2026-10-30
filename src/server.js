@@ -9,6 +9,7 @@ import { createDesktopTools } from './desktop.js';
 import { VERSION } from './config.js';
 import { createFirefoxBrowserBridge } from './firefox.js';
 import { agentBrowserStatus, agentFirefoxInstructions } from './browser-session.js';
+import { VIEW_INSTRUCTIONS } from './browser-view.js';
 
 export function browserCapabilityStatus(config, enabled) {
   if (!enabled) return {
@@ -26,6 +27,13 @@ export function browserCapabilityStatus(config, enabled) {
     browserAuthenticationVerified: false,
   };
   if (config.firefoxDesktop) return agentBrowserStatus(config);
+  if (config.chromeHidden) return {
+    browserEnabled: true, browserMode: 'chrome-hidden', browserSession: 'dedicated-persistent-profile',
+    browserLaunchState: 'not-probed', headless: true, browserWindowMode: 'headless',
+    browserWindowVisibility: 'not-visible', browserAuthSharing: 'explicit-origin-session-transfer',
+    browserUsesVisibleScreen: false, browserSandbox: true, browserSandboxVerified: false,
+    browserConnectionVerified: false, browserAuthenticationVerified: false,
+  };
   if (config.browserExtension) return {
     browserEnabled: true,
     browserMode: 'attached',
@@ -60,15 +68,18 @@ export function browserCapabilityStatus(config, enabled) {
     browserConnectionVerified: false,
     browserAuthenticationVerified: false,
   };
-  const headless = config.headless !== false;
+  const headless = config.headless !== false && !config.privateDisplay;
   return {
     browserEnabled: true,
     browserMode: config.profileDir ? 'dedicated-persistent' : 'isolated',
     browserSession: config.profileDir ? 'dedicated-persistent-profile' : 'dedicated-ephemeral-profile',
     browserLaunchState: 'not-probed',
     headless,
-    browserWindowMode: headless ? 'headless' : 'headed',
-    browserWindowVisibility: headless ? 'not-visible' : 'visible-when-launched',
+    // --private-display: headed on a private display that nobody sees until
+    // browser.show shows it; browserView (system.status) says whether it is.
+    browserWindowMode: config.privateDisplay ? 'private-display' : headless ? 'headless' : 'headed',
+    browserWindowVisibility: config.privateDisplay ? 'hidden-until-shown' : headless ? 'not-visible' : 'visible-when-launched',
+    ...(config.privateDisplay ? { browserUsesVisibleScreen: false } : {}),
     browserAuthSharing: config.profileDir ? 'dedicated-profile-only' : 'none',
     // The setting the server asks for when it starts a browser: on unless the
     // server was started with --no-browser-sandbox. It is a request, not an
@@ -113,6 +124,21 @@ export function findTools(tools, query) {
   };
 }
 
+// Some MCP clients (Grok, for one) admit a tool only when its name has nothing
+// but letters, digits, underscores and hyphens. With --tool-names underscore
+// such a client is shown each name with its dots as underscores. This is
+// presentation only: validation, dispatch and results keep the real name, and
+// only the advertised names are accepted on that connection.
+export function underscoreToolNames(names) {
+  const wire = new Map();
+  for (const name of names) {
+    const shown = name.replaceAll('.', '_');
+    if (wire.has(shown)) throw new Error(`Two tools would both be shown as ${shown}; refusing to guess.`);
+    wire.set(shown, name);
+  }
+  return wire;
+}
+
 // What the assistant is told about this connection at the handshake. It is
 // put together from what the connection really offers: one sentence about
 // sign-ins is true for the server's own temporary browser and false for a
@@ -125,19 +151,24 @@ const BROWSER_INSTRUCTIONS = Object.freeze({
   extension: "The browser tools act in the person's everyday browser, through the Playwright Extension installed there, starting in the tab shared by the extension, with that browser's signed-in sessions: every action there is an action in the person's own browser and accounts. The first browser call opens the extension's connect page in that browser. Without a startup token, it is an approval page: the person chooses a tab and approves each connection; a startup token skips approval. Browser calls wait until the extension connects. Ask the person to approve when approval is required; never try to approve it yourself. Cancelling a browser call or stopping this server disconnects its relay, preserving the person's browser and tabs. Closing the approval page alone leaves the relay waiting.",
   none: 'No browser tools are offered in this connection.',
   firefox: agentFirefoxInstructions(),
+  chrome: "Browser actions operate only in ToolsEngine's separate persistent headless Chrome, using no visible screen. It inherits no sign-ins automatically. Only an explicit user request for browser.transfer_chrome_session can import supported site state via Chrome's approved Playwright Extension. Approval can open a connection page in the source browser; do not approve it yourself. Transfer reads existing shared tabs without navigation or focus, then disconnects. Cookies, localStorage and JSON-compatible IndexedDB persist in the hidden profile; per-tab sessionStorage lasts only for the current hidden browser. Saved passwords, passkeys and device-bound sessions are not transferred. An import does not verify that a site accepts the session. Credentials are never included in the transfer receipt. Fleet can disable transfer. The OpenAI plugin offers no browser or transfer tools.",
+
 });
 // sandbox: false only when the server was started with --no-browser-sandbox.
 // The assistant is then told that its browser has no sandbox: nothing else
 // in the tool list would show it.
-export function serverInstructions({ browser, desktop, sandbox = true, desktopAllowSignIn = false }) {
+export function serverInstructions({ browser, desktop, sandbox = true, desktopAllowSignIn = false, view = false }) {
   if (!Object.hasOwn(BROWSER_INSTRUCTIONS, browser)) throw new Error(`Unknown browser mode: ${browser}`);
-  const ownBrowser = browser === 'temporary' || browser === 'dedicated';
+  const ownBrowser = browser === 'temporary' || browser === 'dedicated' || browser === 'chrome';
   return [
     `ToolsEngine gives this connection a workspace folder of files, a reader for public web pages${browser === 'none' ? '' : ', a browser'}${desktop ? ' and the Windows desktop' : ''}.`,
     BROWSER_INSTRUCTIONS[browser],
+    ...(view && browser !== 'none' ? [VIEW_INSTRUCTIONS] : []),
+    ...(view && browser !== 'none' ? ['Standard workflow: work hidden where possible, preserving the existing browser and session. Show it at the user-requested review or handoff point, or when direct user interaction is necessary; hide it again when autonomous work resumes unless the user asks to watch. Follow the packaged AGENTS.md.'] : []),
     ...(ownBrowser && sandbox === false ? ['This server was started with --no-browser-sandbox, by the person\'s choice: its browser runs without Chromium\'s sandbox, so a page that exploits a fault in the browser can act as the person\'s account. Open only addresses the person asked for or that their task needs.'] : []),
     ...(browser === 'none' ? [] : [
-      'Take a browser.snapshot before acting on a page.',
+      'Take a browser.snapshot before acting on an ordinary page. For an authorized opaque credential capture, do not expose the source in a plaintext snapshot first.',
+      ...(browser === 'firefox' ? ['For user-authorized sensitive data, prefer browser.capture_credential and browser.fill_credential: use an opaque, expiring origin-bound handle, never a plaintext credential in tool arguments, logs or clipboard. Fill does not submit and does not establish authentication. Revoke unused handles. Physical touches and MFA still require the user. Read docs/hidden-firefox.md for scope and privacy limits.'] : []),
       ...(browser === 'firefox' ? ['Firefox observations are returned to the client; this mode does not automatically save page-snapshot artifacts.'] : [`Most browser calls also write a small page-snapshot file under artifacts/toolsengine in the workspace (the newest 64 are kept)${ownBrowser ? '; downloads use unique names and preserve existing files. A page can start one at any time; saved artifacts are capped at 256 files and 64 MiB, 16 MiB per file, including at most 32 downloads' : ''}.`]),
       // An attached browser keeps its own way with downloads (ATTACH_OPTIONS in browser.js).
       ...(ownBrowser ? [] : ['A download that a page starts there is left to that browser and is not copied into the workspace.']),
@@ -208,10 +239,14 @@ export function createCallQueue({ maxPending = 8, maxPerMinute = 120, now = Date
 }
 
 export async function createToolsEngine(config, { makeBrowserBridge = createBrowserBridge, makeFirefoxBridge = createFirefoxBrowserBridge } = {}) {
+  const shown = name => config.toolNames === 'underscore' ? name.replaceAll('.', '_') : name;
   assertPluginProfile(config);
   const desktopTools = createDesktopTools(config);
   const browser = config.browser === false ? null : await (config.firefoxDesktop ? makeFirefoxBridge : makeBrowserBridge)(config);
-  let tools = [...await createWorkspaceTools(config), ...await createWebTools(config), ...(browser?.tools || []), ...desktopTools];
+  // browser.show, browser.hide and browser.visibility (browser?.viewTools)
+  // act on the person's screen, not in the hidden browser, and are kept apart
+  // from the browser tools for that reason.
+  let tools = [...await createWorkspaceTools(config), ...await createWebTools(config), ...(browser?.tools || []), ...(browser?.viewTools || []), ...desktopTools];
   const status = {
     name: 'system.status', title: 'ToolsEngine status',
     description: 'Read ToolsEngine version, platform, workspace, offered capabilities and configured browser session type. Does not launch a browser or verify a browser connection or authentication. browserSandbox is the setting the server asks for when it starts a browser, not a check of a running browser.',
@@ -222,7 +257,8 @@ export async function createToolsEngine(config, { makeBrowserBridge = createBrow
       desktopEnabled: Boolean(config.desktopProfileRoot), desktopLeftHalf: Boolean(config.desktopLeftHalf),
       desktopAllowSignIn: Boolean(config.desktopProfileRoot && config.desktopAllowSignIn),
       workspace: config.workspace, ...browserCapabilityStatus(config, Boolean(browser)),
-      tools: tools.map(t => t.name).sort(), confinement: 'Workspace checks are guardrails, not an operating-system sandbox.' }),
+      ...(browser?.viewState ? { browserView: browser.viewState() } : {}),
+      tools: tools.map(t => shown(t.name)).sort(), confinement: 'Workspace checks are guardrails, not an operating-system sandbox.' }),
   };
   tools.push(status);
   tools.push({
@@ -231,22 +267,27 @@ export async function createToolsEngine(config, { makeBrowserBridge = createBrow
     // The example is a tool that every connection offers: browser tools are not offered with --no-browser.
     inputSchema: { type: 'object', properties: { query: { type: 'string', minLength: 1, maxLength: 200, description: 'A tool name such as workspace.read_file, or words describing what you want to do.' } }, required: ['query'], additionalProperties: false },
     annotations: { title: 'Find offered tools', readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
-    handler: async ({ query }) => findTools(tools, query),
+    handler: async ({ query }) => {
+      const found = findTools(tools, query);
+      return { ...found, tools: found.tools.map(tool => ({ ...tool, name: shown(tool.name) })) };
+    },
   });
   tools = restrictPluginTools(tools, config.pluginProfile);
   const ajv = new Ajv2020({ strict: false, allErrors: true, useDefaults: true });
   const registry = new Map(tools.map(tool => [tool.name, { ...tool, validate: ajv.compile(tool.inputSchema) }]));
   if (registry.size !== tools.length) throw new Error('Duplicate public tool name.');
+  const wireNames = config.toolNames === 'underscore' ? underscoreToolNames(tools.map(tool => tool.name)) : null;
   const server = new Server({ name: 'toolsengine', version: VERSION }, {
     capabilities: { tools: {} },
     instructions: serverInstructions({
-      browser: !browser ? 'none' : config.firefoxDesktop ? 'firefox' : config.browserExtension ? 'extension' : config.cdpEndpoint ? 'attached' : config.profileDir ? 'dedicated' : 'temporary',
+      browser: !browser ? 'none' : config.firefoxDesktop ? 'firefox' : config.chromeHidden ? 'chrome' : config.browserExtension ? 'extension' : config.cdpEndpoint ? 'attached' : config.profileDir ? 'dedicated' : 'temporary',
       desktop: desktopTools.length > 0,
       desktopAllowSignIn: config.desktopAllowSignIn === true,
       sandbox: config.browserSandbox !== false,
+      view: Boolean(browser?.viewTools?.length),
     }),
   });
-  server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: tools.map(({ handler, ...descriptor }) => descriptor) }));
+  server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: tools.map(({ handler, ...descriptor }) => ({ ...descriptor, name: shown(descriptor.name) })) }));
   const queue = createCallQueue();
   let closing = false;
   let closePromise;
@@ -266,7 +307,11 @@ export async function createToolsEngine(config, { makeBrowserBridge = createBrow
     }
   }
   const call = (name, supplied, { signal } = {}) => queue.submit(runningSignal => execute(name,supplied,runningSignal), signal);
-  server.setRequestHandler(CallToolRequestSchema, (request, extra) => call(request.params.name, request.params.arguments, { signal: extra.signal }));
+  server.setRequestHandler(CallToolRequestSchema, (request, extra) => {
+    const name = wireNames ? wireNames.get(request.params.name) : request.params.name;
+    if (!name) return { isError: true, content: [{ type: 'text', text: `Tool is not offered: ${request.params.name}` }] };
+    return call(name, request.params.arguments, { signal: extra.signal });
+  });
   return { server, tools, call, close() {
     closing = true;
     return closePromise ||= (async () => {

@@ -23,6 +23,34 @@ function fixtureHelper(answer = r => ({result:r.op==='tabs'?[{id:'tab1',title:'F
   return {helper,calls};
 }
 
+test('Opaque credentials use dedicated bounded tools; secret text is never an MCP input', async t => {
+  const {helper,calls}=fixtureHelper(r=>({result:r.op==='capture_credential'?{handle:'opaque-fixture-handle'}:{entered:true,submitted:false}}));
+  const bridge=await createFirefoxBrowserBridge({}, {spawnHelper:()=>helper});
+  t.after(()=>bridge.close());
+  const tools=new Map(bridge.tools.map(x=>[x.name,x]));
+  const capture=tools.get('browser.capture_credential');
+  assert.equal(capture.inputSchema.additionalProperties,false);
+  assert.equal(capture.inputSchema.properties.expiresInSeconds.maximum,300);
+  assert.equal(capture.inputSchema.properties.text,undefined);
+  const source={sourceOrigin:'https://mail.example',destinationOrigin:'https://login.example',label:'Password'};
+  assert.match((await capture.handler(source)).content[0].text,/opaque-fixture-handle/);
+  await tools.get('browser.fill_credential').handler({handle:'opaque-fixture-handle',destinationOrigin:'https://login.example'});
+  assert.deepEqual(calls.map(c=>c.op),['capture_credential','fill_credential']);
+  assert.equal(calls[1].text,undefined);
+  await tools.get('browser.revoke_credential').handler({handle:'opaque-fixture-handle'});
+  assert.equal(calls[2].op,'revoke_credential');
+});
+
+test('Opaque input timeout reports uncertainty and never retries', async t => {
+  const {helper,calls}=fixtureHelper(()=>null);
+  const bridge=await createFirefoxBrowserBridge({}, {spawnHelper:()=>helper,timeout:()=>20});
+  t.after(()=>bridge.close());
+  const fill=bridge.tools.find(x=>x.name==='browser.fill_credential');
+  const result=await fill.handler({handle:'fixture-handle',destinationOrigin:'https://login.example'});
+  assert.match(result.content[0].text,/Outcome unknown/);
+  assert.equal(calls.length,1);
+});
+
 test('Firefox mode is explicit and cannot import profiles or mix browser attachment modes', async t => {
   if(process.platform !== 'linux')return t.skip();
   const env={DISPLAY:process.env.DISPLAY,DBUS_SESSION_BUS_ADDRESS:process.env.DBUS_SESSION_BUS_ADDRESS};
@@ -65,7 +93,9 @@ test('Firefox adapter exposes bounded UI operations, validates URLs, and does no
   t.after(()=>bridge.close());
   const byName=new Map(bridge.tools.map(x=>[x.name,x]));
   assert(!byName.has('browser.close'));
-  assert(![...byName.keys()].some(x=>/cookie|storage|evaluate|credential|shell/.test(x)));
+  const credentialTools=[...byName.keys()].filter(x=>/credential/.test(x)).sort();
+  assert.deepEqual(credentialTools,['browser.capture_credential','browser.fill_credential','browser.revoke_credential']);
+  assert(![...byName.keys()].some(x=>/cookie|storage|evaluate|shell/.test(x)));
   await assert.rejects(byName.get('browser.navigate').handler({url:'javascript:alert(1)'}),/HTTP/);
   assert.equal(calls.length,0);
   await assert.rejects(byName.get('browser.click').handler({ref:'fixture'}),/uncertain/);
@@ -195,4 +225,14 @@ test('browser.type passes the line-break key and offers only Enter or Shift+Ente
   await type.handler({ref:'f1',text:'Hi\nthere',newline:'Shift+Enter'});
   assert.equal(calls.at(-1).newline,'Shift+Enter');
   assert.deepEqual(type.inputSchema.properties.newline.enum,['Enter','Shift+Enter']);
+});
+
+test('MCP instructions teach hidden work and opaque credentials only in capable modes',()=>{
+ const firefox=serverInstructions({browser:'firefox',desktop:false,view:true});
+ assert.match(firefox,/work hidden where possible/);
+ assert.match(firefox,/user-requested review or handoff/);
+ assert.match(firefox,/browser.capture_credential/);
+ assert.match(firefox,/opaque, expiring origin-bound handle/);
+ const restricted=serverInstructions({browser:'none',desktop:false,view:false});
+ assert.doesNotMatch(restricted,/browser.capture_credential|work hidden where possible/);
 });

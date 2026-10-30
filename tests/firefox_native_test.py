@@ -1,4 +1,5 @@
 import importlib.util
+import json
 import math
 import os
 import tempfile
@@ -473,6 +474,31 @@ class ActionTests(GuardedTest):
         with patch.object(adapter,'operate',typed_then_failed), self.assertRaises(ValueError):adapter.dispatch({'op':'type'})
         self.assertEqual(adapter.receipts,{})
 
+class RoleNameTests(GuardedTest):
+    """AT-SPI 2.62 reports Firefox buttons with the role "button"; earlier releases said "push button"."""
+    def test_the_button_role_is_read_as_push_button_and_other_roles_are_unchanged(self):
+        for role,expected in (('button','push button'),('push button','push button'),('toggle button','toggle button'),
+                              ('link','link'),('entry','entry'),('password text','password text')):
+            self.assertEqual(adapter.role_of(Node(role,'X')),expected)
+    def test_a_button_role_node_is_a_push_button_in_snapshots(self):
+        button=Node('button','Apply',actions=['press'])
+        idle=Node('button','',states=())
+        page=Node('document web','Application',states=(S.ENABLED,S.SHOWING),kids=[button,idle])
+        frame=Node('frame','Firefox',kids=[page])
+        with patch.object(adapter,'window',return_value=('1:0',frame,1)):text=adapter.snapshot()
+        self.assertRegex(text,r'- push button "Apply"[^\n]*\[ref=f[0-9a-f]+\]')
+        self.assertRegex(text,r'- push button "" \[disabled\]')
+        self.assertNotRegex(text,r'- button ')
+        ref=next(r for r,receipt in adapter.receipts.items() if receipt[0] is button)
+        self.assertEqual(adapter.receipts[ref][2],'push button')
+        with patch.object(adapter,'window',return_value=('1:0',frame,1)):self.assertIs(adapter.resolve(ref),button)
+    def test_a_button_role_node_is_clicked_and_described_as_a_push_button(self):
+        words=Node('static','Submit');button=Node('button','Submit',actions=['press'],kids=[words])
+        Node('document web','Form',kids=[button])
+        self.assertEqual(adapter.dispatch({'op':'click','ref':self.ref(words)}),
+                         'Action completed on the nearest actionable ancestor (push button "Submit"); inspect a fresh snapshot.')
+        self.assertEqual(button.done,['press'])
+
 class LaunchTests(GuardedTest):
     session={'DISPLAY':':0','HOME':'/home/owner','PATH':'/usr/bin','DBUS_SESSION_BUS_ADDRESS':'unix:path=/run/user/1000/bus',
              'XAUTHORITY':'/run/user/1000/gdm/Xauthority','NOTIFY_SOCKET':'/run/systemd/notify','INVOCATION_ID':'unit'}
@@ -616,5 +642,81 @@ class UploadTests(GuardedTest):
             self.assertEqual(REAL_OPEN_CHOOSER(),(dialog,77,'0x1'))
         with patch.object(adapter,'choosers',return_value=[]), patch.object(adapter,'CHOOSER_WAIT',0.05):
             with self.assertRaisesRegex(ValueError,'No file chooser is open'):REAL_OPEN_CHOOSER()
+
+class HiddenDisplayRaceTests(unittest.TestCase):
+    # Two helpers (two agents' hidden Firefoxes) can pick the same free display
+    # number at once. Only the Xvfb named in the display's lock owns it; the
+    # helper whose Xvfb lost moves on to the next number.
+    def setUp(self):
+        self.profile=tempfile.mkdtemp()
+        self.addCleanup(__import__('shutil').rmtree,self.profile,True)
+        self.sockets,self.locks,self.started=set(),{},[]
+        real=os.path.exists
+        def exists(path):
+            path=str(path)
+            if path.startswith('/tmp/.X11-unix/X'):return int(path[16:]) in self.sockets
+            if path.startswith('/tmp/.X') and path.endswith('-lock'):return int(path[7:-5]) in self.locks
+            return real(path)
+        test=self
+        class Xvfb:
+            def __init__(self,argv,**kw):
+                self.number=int(argv[1][1:]);self.pid=1000+len(test.started);self.polls=0
+                test.started.append(self)
+                if self.number==97:
+                    # The other helper's Xvfb won :97 a moment earlier; this one is refused.
+                    test.sockets.add(97);test.locks[97]=4242
+                else:
+                    test.sockets.add(self.number);test.locks[self.number]=self.pid
+            def poll(self):
+                self.polls+=1
+                return 1 if self.number==97 and self.polls>3 else None
+            def terminate(self):pass
+            def wait(self,timeout=None):return 0
+        for item in (patch.object(adapter,'AGENT_MODE',True),patch.object(adapter,'AGENT_PROFILE',self.profile),
+                     patch.object(adapter,'VISIBLE_DISPLAY',':0'),patch.object(adapter,'_agent_display_ready',False),
+                     patch.object(adapter.shutil,'which',lambda name:'/usr/bin/'+name),
+                     patch.object(adapter.subprocess,'run',return_value=None),patch.object(adapter.subprocess,'Popen',Xvfb),
+                     patch.object(adapter.os.path,'exists',exists),patch.object(adapter,'process_birth',lambda pid:'1'),
+                     patch.object(adapter,'display_lock_pid',lambda number:self.locks.get(number)),
+                     patch.object(adapter.time,'sleep',lambda s:None),
+                     patch.dict(os.environ,{'DISPLAY':':0'})):
+            item.start();self.addCleanup(item.stop)
+    def test_a_display_whose_lock_names_another_xvfb_is_not_taken(self):
+        self.assertEqual(adapter.ensure_agent_display(),':96')
+        self.assertEqual([x.number for x in self.started],[97,96])
+        receipt=json.loads(Path(self.profile,'.toolsengine-display.json').read_text())
+        self.assertEqual((receipt['display'],receipt['pid']),(':96',self.started[1].pid))
+        self.assertEqual(os.environ['DISPLAY'],':96')
+
+class HiddenDisplayForShowTests(unittest.TestCase):
+    # browser.show asks the helper which display to show. Only the agent
+    # profile's own attested display, with its private cookie file, is named.
+    def setUp(self):
+        self.profile=tempfile.mkdtemp()
+        self.auth=os.path.join(self.profile,'.toolsengine-xauthority-0123456789abcdef')
+        fd=os.open(self.auth,os.O_CREAT|os.O_EXCL|os.O_WRONLY,0o600);os.close(fd)
+        self.patches=[patch.object(adapter,'AGENT_MODE',True),patch.object(adapter,'AGENT_PROFILE',self.profile),
+                      patch.object(adapter,'VISIBLE_DISPLAY',':0'),patch.object(adapter,'ensure_agent_display',lambda:':90'),
+                      patch.dict(os.environ,{'DISPLAY':':90','XAUTHORITY':self.auth})]
+        for item in self.patches:item.start()
+    def tearDown(self):
+        for item in reversed(self.patches):item.stop()
+        import shutil;shutil.rmtree(self.profile,ignore_errors=True)
+    def request(self):
+        return adapter.dispatch({'op':'display','sessionTarget':'hidden-window','display':':90','profile':self.profile})
+    def test_the_agent_display_and_its_cookie_file_are_named(self):
+        self.assertEqual(self.request(),{'display':':90','xauthority':self.auth})
+    def test_the_visible_display_another_cookie_or_an_open_cookie_file_are_refused(self):
+        with patch.dict(os.environ,{'DISPLAY':':0'}):
+            with self.assertRaisesRegex(ValueError,'visible display|could not be identified'):self.request()
+        other=os.path.join(tempfile.mkdtemp(),'.toolsengine-xauthority-0123456789abcdef')
+        fd=os.open(other,os.O_CREAT|os.O_EXCL|os.O_WRONLY,0o600);os.close(fd)
+        with patch.dict(os.environ,{'XAUTHORITY':other}):
+            with self.assertRaisesRegex(ValueError,'could not be identified'):self.request()
+        os.chmod(self.auth,0o644)
+        with self.assertRaisesRegex(ValueError,'could not be identified'):self.request()
+    def test_outside_agent_mode_no_display_is_offered(self):
+        with patch.object(adapter,'AGENT_MODE',False):
+            with self.assertRaisesRegex(ValueError,'Only the hidden Firefox display'):adapter.dispatch({'op':'display'})
 
 unittest.main()

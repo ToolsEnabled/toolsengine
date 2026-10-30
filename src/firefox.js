@@ -13,6 +13,8 @@ import {
 import { startAgentBrowser } from './firefox-profile.js';
 import { transferUserFirefoxProfile, loadFleetSettings, fleetProfileTransferAllowed, locateUserFirefoxProfile } from './firefox-profile-transfer.js';
 import { validateBrowserLayout } from './config.js';
+import { createBrowserView, browserViewTools, displayNumber } from './browser-view.js';
+import os from 'node:os';
 
 // Navigation accepts web URLs; internal, file, script and credential URLs
 // are outside this dedicated-profile mode.
@@ -53,11 +55,12 @@ export const requestTimeout = ({ op, text, url }) => {
 // Requests whose input a repeat would duplicate: a click, a key, a URL, an
 // upload. If the helper never answers one, the outcome is unknown and is
 // reported as such, not as an error that invites a retry.
-const COMMITTING = new Set(['click', 'key', 'navigate', 'upload', 'open_tab', 'select_tab']);
+const COMMITTING = new Set(['click', 'key', 'navigate', 'upload', 'open_tab', 'select_tab', 'fill_credential']);
 
 // The helper owns a dedicated profile and a private display. It remains in
 // the caller's execution context; it never starts an implicit host escape.
-export async function createFirefoxBrowserBridge(config = {}, { spawnHelper = spawn, timeout = requestTimeout } = {}) {
+export async function createFirefoxBrowserBridge(config = {}, options = {}) {
+  const { spawnHelper = spawn, timeout = requestTimeout } = options;
   const visibleDisplay = Object.prototype.hasOwnProperty.call(config, 'visibleDisplay')
     ? config.visibleDisplay
     : (process.env.DISPLAY ?? null);
@@ -89,6 +92,7 @@ export async function createFirefoxBrowserBridge(config = {}, { spawnHelper = sp
   if (visibleDisplay) baseEnv.DISPLAY = String(visibleDisplay);
   else delete baseEnv.DISPLAY;
   const env = agentBrowserHelperEnv(session, baseEnv, agentProfileDir);
+  env.PYTHONDONTWRITEBYTECODE = '1';
   const scriptPath = fileURLToPath(new URL('../native/firefox-desktop.py', import.meta.url));
   let helper;
   helper = spawnHelper('/usr/bin/python3', [scriptPath], {
@@ -179,7 +183,11 @@ export async function createFirefoxBrowserBridge(config = {}, { spawnHelper = sp
     tool('browser.navigate', 'Navigate the selected Firefox tab to an HTTP(S) URL by typing into its address bar; Enter is pressed only after the bar has focus and shows the whole URL. For long URLs prefer browser.tabs action new with url, which needs no typing.', schema({url:string},['url']), args=>request({op:'navigate',url:firefoxUrl(args.url)})),
     tool('browser.navigate_back', 'Go back in the selected Firefox tab.', schema(), ()=>request({op:'key',key:'Alt+Left'})),
     tool('browser.click', 'Invoke the accessibility action (click, press, jump, select, check, clickAncestor and similar) of an element from the latest snapshot; an element without one uses its nearest actionable ancestor. Native drop-down lists use browser.select_option.', schema({ref:string,element:string},['ref']), args=>request({op:'click',ref:args.ref})),
+    tool('browser.find_control', 'Locate one visible button or link by an already-known exact accessible name and role on the specified HTTPS origin. Returns only a fresh action reference, no other page content. Use this to open or expand a private source message without exposing its credential in a general snapshot. Password controls and nested documents are excluded. Lookup does not click; follow with browser.click if that action is authorized.', schema({origin:{type:'string',minLength:1,maxLength:2048},name:{type:'string',minLength:1,maxLength:200},role:{type:'string',enum:['push button','toggle button','link']}},['origin','name','role']), args=>request({op:'find_control',...args}), true),
     tool('browser.type', 'Replace the text of an editable, non-password control from the latest snapshot. Text goes out in chunks: each only while Firefox is the foreground window and the control has focus, and the next only once the control shows the previous one. A chunk the control does not show is retried once, more slowly, from what the control holds. Each line break is a real Enter key press; pass newline "Shift+Enter" for editors where Enter sends or submits. It returns only after the control shows exactly that text; otherwise it fails, says what the control holds (for example line breaks the page dropped), and types nothing more. If an Enter for a line break appears to have sent or submitted, the result says so instead of failing. Tabs, and line breaks in single-line fields, are refused. submit presses Enter afterwards; slowly spaces keys further apart.', schema({ref:string,element:string,text:{type:'string',maxLength:20000},submit:{type:'boolean'},slowly:{type:'boolean'},newline:{type:'string',enum:['Enter','Shift+Enter']}},['ref','text']), args=>request({op:'type',ref:args.ref,text:args.text,submit:args.submit,slowly:args.slowly,newline:args.newline})),
+    tool('browser.capture_credential', 'Only for a credential handoff authorized by the user: privately capture one value following a precise literal label on the selected page; supports colon, equals or prose "label is value" forms. Distinct matches are refused, not guessed. Checks the exact source HTTPS origin, ignores password controls and subframes, and returns only a short-lived one-use opaque handle bound to destinationOrigin. The credential value never enters MCP input or output. The source page is withheld from subsequent observations on this connection; matching captured values are redacted until expiry. No credential files or browser databases are read. HTTP is allowed only on loopback for inert fixtures.', schema({sourceOrigin:{type:'string',minLength:1,maxLength:2048},destinationOrigin:{type:'string',minLength:1,maxLength:2048},label:{type:'string',minLength:1,maxLength:100},expiresInSeconds:{type:'integer',minimum:10,maximum:300}},['sourceOrigin','destinationOrigin','label']), args=>request({op:'capture_credential',...args})),
+    tool('browser.fill_credential', 'Consume an opaque credential handle into the single visible enabled password field on the exact bound destination HTTPS origin. Checks this owned Firefox window and field focus before every bounded input chunk. The value travels only over local process stdin, never a command argument, file, clipboard, ordinary typing or MCP message. No password value is read back. Does not press Enter or submit; delivered input is not proof of authentication. Every attempt consumes the handle; uncertain delivery must be inspected before a new attempt.', schema({handle:{type:'string',minLength:1,maxLength:100},destinationOrigin:{type:'string',minLength:1,maxLength:2048}},['handle','destinationOrigin']), args=>request({op:'fill_credential',...args})),
+    tool('browser.revoke_credential', 'Revoke an unused opaque credential handle and erase its stored input buffer. Existing observation redaction remains until expiry. No value is returned.', schema({handle:{type:'string',minLength:1,maxLength:100}},['handle']), args=>request({op:'revoke_credential',handle:args.handle})),
     tool('browser.select_option', 'Choose an option of a native drop-down list (<select>) from the latest snapshot by its visible name, using the keyboard as a person would, and verify the list then shows it. Case and spacing are ignored; the name must otherwise match one option exactly.', schema({ref:string,element:string,option:{type:'string',minLength:1,maxLength:500}},['ref','option']), args=>request({op:'select_option',ref:args.ref,option:args.option})),
     tool('browser.file_upload', 'Answer a file chooser the page has opened (click its upload control first). Enters one explicitly named absolute file path in the desktop file chooser and verifies the chooser closed. Omit paths to cancel the chooser. Links, directories and hidden paths are refused.', schema({paths:{type:'array',items:{type:'string',minLength:1,maxLength:4096},maxItems:1}}), async args => {
       if (!args.paths?.length) return request({op:'upload'});
@@ -202,12 +210,41 @@ export async function createFirefoxBrowserBridge(config = {}, { spawnHelper = sp
       handler:async()=>({content:[{type:'image',data:(await request({op:'screenshot'})).image,mimeType:'image/png'}]}),
     },
   ];
+  // browser.show, browser.hide and browser.visibility show this private
+  // display to the person and hide it again (browser-view.js). They act on
+  // the person's screen, not in the hidden window, so they are a family of
+  // their own (viewTools) beside the tools above, none of which uses the
+  // visible screen. Showing starts Firefox first if it is not running.
+  const personDisplay = typeof options.personDisplay === 'function' ? options.personDisplay
+    : options.personDisplay ? () => options.personDisplay
+      : () => ({ display: visibleDisplay ?? undefined, xauthority: process.env.XAUTHORITY, wayland: process.env.WAYLAND_DISPLAY });
+  const view = createBrowserView({
+    runtimeRoot: config.workspace ? path.join(config.workspace, '.toolsengine-runtime', 'tmp') : os.tmpdir(),
+    personDisplay, programs: options.viewPrograms, programRoot: config.browserViewRuntime,
+    privateDisplay: async () => {
+      await request({ op: 'windows' });
+      const found = await request({ op: 'display' });
+      // The helper names the display; it must be a private display of this
+      // profile, not the person's, with the profile's own cookie file.
+      const auth = typeof found?.xauthority === 'string' ? found.xauthority : '';
+      if (!displayNumber(found?.display) || displayNumber(found.display) === displayNumber(visibleDisplay)
+        || path.dirname(auth) !== path.resolve(agentProfileDir) || !path.basename(auth).startsWith('.toolsengine-xauthority-'))
+        throw new Error('The hidden Firefox display could not be identified.');
+      const stat = await fs.lstat(auth);
+      if (!stat.isFile() || stat.uid !== process.getuid() || (stat.mode & 0o077)) throw new Error('The hidden Firefox display\'s cookie file is not private.');
+      return { display: found.display, xauthority: auth };
+    },
+  });
+  const viewTools = browserViewTools(view, { subject: 'the hidden Firefox window' });
   return {
     tools,
+    viewTools,
+    viewState: () => view.state(),
+    view,
     session,
     binding,
     agentProfileDir,
     importedUserProfile: false,
-    close: async () => { helper.stdin.end(); helper.kill(); fail(new Error('Firefox adapter closed.')); lines.close(); },
+    close: async () => { await view.close().catch(() => {}); helper.stdin.end(); helper.kill(); fail(new Error('Firefox adapter closed.')); lines.close(); },
   };
 }
