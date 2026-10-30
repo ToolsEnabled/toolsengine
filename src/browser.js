@@ -10,10 +10,13 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { ListRootsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 export { createArtifactBudget } from './artifacts.js';
 import { createArtifactBudget, ARTIFACT_LIMITS } from './artifacts.js';
+import { readApprovedChromeSession, transferOrigins, sessionReceipt, CHROME_TRANSFER_ERROR } from './chrome-session.js';
 import { randomUUID } from 'node:crypto';
 import { createExtensionWorkerBridge } from './extension-worker.js';
 import { createRequire } from 'node:module';
 import { refuseRemoteGrid, validateBrowserLayout, folderContains, channelExecutable, checkCdpEndpoint } from './config.js';
+import { createBrowserView, browserViewTools, privateFolder, removeAbandonedFolders } from './browser-view.js';
+import { startPrivateDisplay, privateDisplayEnvironment, PRIVATE_DISPLAY_BROWSER_ARGS } from './private-display.js';
 
 // A positive list is also enforced by the dispatcher. Upstream additions never
 // become public tools automatically. Page-registered tools are disabled below.
@@ -225,10 +228,14 @@ export async function removeAbandonedShortTemps(directory = '/tmp', prefix = 'to
 // starts Chromium with --no-sandbox unless it is asked for the sandbox, so it
 // is asked for here, always. Only the startup option --no-browser-sandbox,
 // which sets browserSandbox to exactly false, switches it off.
+//
+// With --private-display the browser runs headed, on a private display that
+// nobody sees (private-display.js), so that browser.show can show it.
 export function browserLaunchOptions(config, processOptions = {}) {
   return {
-    headless: config.headless !== false,
+    headless: config.privateDisplay ? false : config.headless !== false,
     chromiumSandbox: config.browserSandbox !== false,
+    ...(config.privateDisplay ? { args: [...PRIVATE_DISPLAY_BROWSER_ARGS] } : {}),
     ...(config.browserExecutable ? { executablePath: config.browserExecutable } : {}),
     ...(config.browserChannel ? { executablePath: channelExecutable(config.browserChannel) } : {}),
     ...processOptions,
@@ -433,6 +440,13 @@ export async function workspaceSocketTemp(workspace) {
 export async function createBrowserBridge(config, options = {}) {
   if (config.browserExtension && !options.connectExtension) return createExtensionWorkerBridge(config);
   const { connectExtension = connectThroughExtension } = options;
+  if (config.chromeHidden && (config.headless === false || config.browserSandbox === false || config.cdpEndpoint || config.browserExtension || config.firefoxDesktop || !config.profileDir || config.browserChannel !== 'chrome' || config.browserExecutable))
+    throw new Error('Chrome hidden mode requires its own persistent sandboxed headless installed Chrome.');
+  if (config.chromeHidden) {
+    // Direct library callers may have initialized Playwright before parsing
+    // config. Disable its cached debug namespaces as well as startup variables.
+    createRequire(import.meta.url)('playwright-core/lib/utilsBundle').debug.disable();
+  }
   // Also here, for a caller that does not come through parseConfig.
   refuseRemoteGrid();
   const workspace = await fs.realpath(config.workspace);
@@ -456,6 +470,37 @@ export async function createBrowserBridge(config, options = {}) {
   const dedicated = !attached && Boolean(config.profileDir);
   const protectedFolders = await browserProtectedFolders(workspace, dedicated ? config.profileDir : undefined);
   if (config.cdpEndpoint) checkCdpEndpoint(config.cdpEndpoint);
+  // --private-display: the browser this server starts runs on a private X
+  // display, and browser.show / browser.hide show it to the person and hide
+  // it again. Also checked here, for a caller that does not come through
+  // parseConfig.
+  const privateDisplay = Boolean(config.privateDisplay);
+  if (privateDisplay && (attached || process.platform !== 'linux' || config.headless === false))
+    throw new Error('--private-display applies to a browser that ToolsEngine starts itself, on Linux, and not with --headed.');
+  const runtimeTmp = path.join(workspace, '.toolsengine-runtime', 'tmp');
+  // The person's display, where browser.show puts its window: the one this
+  // server was started with, unless a caller names another (tests).
+  const personDisplay = typeof options.personDisplay === 'function' ? options.personDisplay
+    : options.personDisplay ? () => options.personDisplay
+      : () => ({ display: process.env.DISPLAY, xauthority: process.env.XAUTHORITY, wayland: process.env.WAYLAND_DISPLAY });
+  let displayFolder, displayHandle, view;
+  if (privateDisplay) {
+    await fs.mkdir(runtimeTmp, { recursive: true, mode: 0o700 });
+    await removeAbandonedFolders(runtimeTmp, 'private-display-');
+    await removeAbandonedFolders(runtimeTmp, 'browser-view-');
+  }
+  // Start the private display when the browser needs it. Xvfb ends by itself
+  // once the browser and any viewer have gone, so a later launch starts a new
+  // one.
+  const ensurePrivateDisplay = async () => {
+    if (displayHandle?.alive()) return displayHandle;
+    const previous = displayHandle;
+    displayHandle = undefined;
+    await previous?.close().catch(() => {});
+    displayFolder ||= await privateFolder(runtimeTmp, 'private-display-');
+    displayHandle = await startPrivateDisplay({ directory: displayFolder.directory, visibleDisplay: personDisplay()?.display, ...(options.xvfb ? { xvfb: options.xvfb } : {}) });
+    return displayHandle;
+  };
   let ownedBrowser;
   let ownedContext;
   let connectedBrowser;
@@ -503,7 +548,9 @@ export async function createBrowserBridge(config, options = {}) {
         env.TMPDIR = shortTemp;
       } catch { /* the browser is then given the long directory, as before */ }
     }
-    return Object.keys(env).length ? { env: { ...process.env, ...env } } : {};
+    const merged = Object.keys(env).length ? { ...process.env, ...env } : null;
+    if (privateDisplay) return { env: privateDisplayEnvironment(merged || process.env, await ensurePrivateDisplay()) };
+    return merged ? { env: merged } : {};
   };
   // The browser's own processes can still be clearing their files for a
   // moment after it reports closed, so the removal is tried again.
@@ -543,6 +590,7 @@ export async function createBrowserBridge(config, options = {}) {
   };
   const openContext = async () => {
     if (activeSignal?.aborted) throw new Error('Browser request cancelled before launch.');
+    if (ownedContext) return ownedContext;
     if (extension) {
       if (!extensionPending) {
         const controller = new AbortController();
@@ -631,6 +679,8 @@ export async function createBrowserBridge(config, options = {}) {
     // Revoke first: waitForOpening must never wait for a human response.
     extensionPending?.controller.abort();
     extensionPending = undefined;
+    // A closing browser closes the window that shows it.
+    await view?.release('browser-closed').catch(() => {});
     try {
       await closeBrowserResources({
         removeTemp:async()=>{downloadObserver?.close();downloadObserver=undefined;await removeShortTemp();},
@@ -727,14 +777,69 @@ export async function createBrowserBridge(config, options = {}) {
       },
     };
   });
-  return { tools, async waitForDownloads(){await Promise.all([...pendingDownloads]);}, async close() {
+  const applyChromeSession = async state => {
+    // All browser tools still resolve only this owned headless context.
+    if (!config.chromeHidden || attached || config.headless === false || config.browserSandbox === false)
+      throw new Error('Session import requires dedicated sandboxed hidden Chrome.');
+    await stopOperation();
+    try {
+      const context = await openContext();
+      await context.setStorageState({ cookies: state.cookies, origins: state.origins });
+      const marker = '.toolsengine-session-' + randomUUID();
+      await context.addInitScript(({ origins, marker }) => {
+        const state = origins.find(item => item.origin === location.origin);
+        if (!state || sessionStorage.getItem(marker)) return;
+        for (const { name, value } of state.entries) sessionStorage.setItem(name, value);
+        sessionStorage.setItem(marker, '1');
+      }, { origins: state.sessionStorage, marker });
+      return sessionReceipt(state);
+    } catch {
+      throw new Error(CHROME_TRANSFER_ERROR);
+    }
+  };
+  if (config.chromeHidden) tools.push({
+    name: 'browser.transfer_chrome_session', title: 'Transfer an authorized Chrome session into hidden Chrome',
+    description: "Standalone MCP only, after the user's explicit request: ask the installed Chrome's Playwright Extension for a connection, then read cookies, localStorage, JSON-compatible IndexedDB and per-tab sessionStorage for explicitly named HTTP(S) origins. Each origin must already have an open shared source tab; the first shared tab for that origin supplies per-tab storage. Source tabs are never navigated, focused or closed. Approval may open Chrome's connection page once; never approve it yourself. Replaces the hidden browser's previous site storage and closes its tabs, losing unsaved work there. Source Chrome decrypts its own cookies, including on native Windows; encrypted database files are never copied. Hidden Chrome stays headless with a separate persistent profile. Passwords, passkeys, device-bound sign-ins and other profile data are excluded. SessionStorage lasts only until the hidden browser closes; other imported storage persists locally. Sites can reject copied sessions; success is an import receipt, not verified authentication. No credential values are returned. Fleet can disable transfer before source connection. Unavailable through the OpenAI plugin.",
+    inputSchema: { type: 'object', properties: { origins: { type: 'array', minItems: 1, maxItems: 20, uniqueItems: true, items: { type: 'string', minLength: 1, maxLength: 2048 } } }, required: ['origins'], additionalProperties: false },
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
+    sessionTarget: 'hidden-headless', usesVisibleScreen: false,
+    async handler({ origins }, { signal } = {}) {
+      const requested = transferOrigins(origins);
+      const state = await (options.readChromeSession || readApprovedChromeSession)(config, requested, { signal });
+      if (signal?.aborted) throw new Error('Chrome transfer cancelled before hidden-session replacement.');
+      return runBrowserOperation(async () => ({ content: [{ type: 'text', text: JSON.stringify(await applyChromeSession(state)) }] }), { signal, stop: stopOperation });
+    },
+  });
+  // browser.show, browser.hide and browser.visibility: offered with
+  // --private-display. Showing a browser that is not running starts it, as
+  // any browser tool would, through browser.tabs.
+  let viewTools = [];
+  if (privateDisplay) {
+    view = createBrowserView({
+      runtimeRoot: runtimeTmp, personDisplay, programs: options.viewPrograms, programRoot: config.browserViewRuntime,
+      privateDisplay: async ({ signal } = {}) => {
+        if (!ownedContext || !displayHandle?.alive()) {
+          const started = await tools.find(tool => tool.name === 'browser.tabs').handler({ action: 'list' }, { signal });
+          if (started?.isError) throw new Error(`The browser could not be started: ${started.content?.map(part => part.text).join(' ').slice(0, 600)}`);
+        }
+        if (!ownedContext || !displayHandle?.alive()) throw new Error('The browser is not running on its private display.');
+        return { display: displayHandle.display, xauthority: displayHandle.xauthority };
+      },
+    });
+    viewTools = browserViewTools(view);
+  }
+  return { tools, applyChromeSession, viewTools, viewState: view ? () => view.state() : undefined, view, privateDisplay: () => displayHandle && { display: displayHandle.display, xauthority: displayHandle.xauthority, pid: displayHandle.pid, alive: displayHandle.alive() },
+    async waitForDownloads(){await Promise.all([...pendingDownloads]);}, async close() {
     const errors = [];
     const attempt = async operation => { try { await operation(); } catch (error) { errors.push(error); } };
+    await attempt(() => view?.close());
     await attempt(stopOperation);
     await attempt(() => client.close());
     await attempt(() => upstream.close());
     await attempt(() => Promise.all([...pendingDownloads]));
     await attempt(() => budget.close());
+    await attempt(async () => { const handle = displayHandle; displayHandle = undefined; await handle?.close(); });
+    await attempt(() => displayFolder?.close());
     if (errors.length) throw new AggregateError(errors, 'Browser cleanup encountered an error.');
   } };
 }

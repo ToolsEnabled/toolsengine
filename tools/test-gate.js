@@ -17,7 +17,19 @@ export const BROWSER_TESTS_DID_NOT_RUN = Object.freeze([
   'The Chromium build this version is pinned to is not on this machine',
 ]);
 
+export const CHROME_LIVE_TEST = 'native hidden Chrome imports an owned signed-in local session without touching source tabs through its approved extension';
 export const FIREFOX_LIVE_TEST = 'hidden Firefox types and clicks on its authenticated private display without importing user credentials';
+export const FIREFOX_SECRET_LIVE_TEST = 'opaque credential capture and password delivery exclude values from all tool observations';
+export const FIREFOX_DIALOGS_LIVE_TEST = 'hidden Firefox keeps its file chooser, download, print, notification and external links in its hidden session';
+// browser.show and browser.hide with the real programs (tests/browser-view.integration.test.js).
+// On Linux they must pass; elsewhere they are skipped with exactly this reason.
+export const VIEW_LIVE_TESTS = Object.freeze([
+  'the view channel is a private Unix socket with a password, for one viewer, and no network port',
+  "ToolsEngine's Chromium on its private display: hidden, shown to the person who uses it, hidden again with the same live page",
+  'hidden Firefox: shown to the person who clicks in it, hidden again with the same live page',
+  "over stdio, --private-display offers browser.show, keeps the browser off the person's screen, and shows it or names what is missing",
+]);
+export const VIEW_PLATFORM_SKIP = 'browser.show and browser.hide require Linux';
 export const REQUIRED_BROWSER_SUCCESSES = Object.freeze([
   'real Chromium navigation, form interaction, snapshot, screenshot and PDF',
   'explicit CDP attachment lists tabs and disconnects without closing the browser',
@@ -25,7 +37,8 @@ export const REQUIRED_BROWSER_SUCCESSES = Object.freeze([
   'in an attached browser a download is left to that browser:',
   'actual stdio MCP resizes real browser desktop/mobile',
   'a browser with a dedicated profile (--profile-dir) is started sandboxed as well',
-  ...(process.platform === 'linux' ? [FIREFOX_LIVE_TEST] : []),
+  ...(process.platform === 'linux' ? [FIREFOX_LIVE_TEST, FIREFOX_SECRET_LIVE_TEST, FIREFOX_DIALOGS_LIVE_TEST, ...VIEW_LIVE_TESTS] : []),
+  ...(['linux', 'win32'].includes(process.platform) ? [CHROME_LIVE_TEST] : []),
 ]);
 
 // The test files whose tests open a page in a browser or attach to one. A
@@ -35,11 +48,15 @@ export const REQUIRED_BROWSER_SUCCESSES = Object.freeze([
 // writes before each file's output.
 export const BROWSER_TEST_FILES = Object.freeze([
   'tests/firefox-live.linux.test.js',
+  'tests/firefox-secure-live.linux.test.js',
+  'tests/hidden-dialogs.linux.test.js',
+  'tests/chrome-session.integration.test.js',
   'tests/browser-extension.test.js',
   'tests/browser-modes.integration.test.js',
   'tests/browser-sandbox.integration.test.js',
   'tests/browser-temp.integration.test.js',
   'tests/browser-tools.integration.test.js',
+  'tests/browser-view.integration.test.js',
   'tests/browser.integration.test.js',
   'tests/resize.integration.test.js',
   'tests/review-live.integration.test.js',
@@ -69,10 +86,19 @@ export function unrecognisedBrowserSkips(text) {
       && skip[1].trim() === 'the browser ToolsEngine starts writes nothing under the configuration folder of the environment it was started in'
       && reason === 'XDG_CONFIG_HOME is a Linux convention';
     const firefoxPlatformSkip = process.platform !== 'linux'
-      && file === 'tests/firefox-live.linux.test.js'
-      && skip[1].trim() === FIREFOX_LIVE_TEST
+      && ((file === 'tests/firefox-live.linux.test.js' && skip[1].trim() === FIREFOX_LIVE_TEST)
+          || (file === 'tests/firefox-secure-live.linux.test.js' && skip[1].trim() === FIREFOX_SECRET_LIVE_TEST)
+          || (file === 'tests/hidden-dialogs.linux.test.js' && skip[1].trim() === FIREFOX_DIALOGS_LIVE_TEST))
       && reason === 'Firefox mode requires Linux';
-    if (!xdgPlatformSkip && !firefoxPlatformSkip && !KNOWN_BROWSER_SKIPS.some(words => reason.startsWith(words))) found.push({ file, name: skip[1].trim(), reason });
+    const viewPlatformSkip = process.platform !== 'linux'
+      && file === 'tests/browser-view.integration.test.js'
+      && VIEW_LIVE_TESTS.includes(skip[1].trim())
+      && reason === VIEW_PLATFORM_SKIP;
+    const chromePlatformSkip = !['linux', 'win32'].includes(process.platform)
+      && file === 'tests/chrome-session.integration.test.js'
+      && (skip[1].trim() === CHROME_LIVE_TEST || skip[1].trim() === CHROME_LIVE_TEST.replace(' through its approved extension', ''))
+      && reason === 'Chrome hidden mode requires Linux or native Windows';
+    if (!xdgPlatformSkip && !firefoxPlatformSkip && !viewPlatformSkip && !chromePlatformSkip && !KNOWN_BROWSER_SKIPS.some(words => reason.startsWith(words))) found.push({ file, name: skip[1].trim(), reason });
   }
   return found;
 }

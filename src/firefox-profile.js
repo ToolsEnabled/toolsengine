@@ -13,6 +13,21 @@ const PREFS = [
   'user_pref("browser.sessionstore.resume_session_once", false);',
   'user_pref("browser.startup.page", 0);',
   'user_pref("browser.aboutwelcome.enabled", false);',
+  // Dialogs stay in the hidden Firefox, on its private display, never on the
+  // desktop portal or notifier (also set in native/firefox-desktop.py).
+  'user_pref("widget.use-xdg-desktop-portal.file-picker", 0);',
+  'user_pref("widget.use-xdg-desktop-portal.mime-handler", 0);',
+  'user_pref("widget.use-xdg-desktop-portal.open-uri", 0);',
+  'user_pref("widget.use-xdg-desktop-portal.settings", 0);',
+  'user_pref("widget.use-xdg-desktop-portal.location", 0);',
+  'user_pref("widget.use-xdg-desktop-portal.native-messaging", 0);',
+  'user_pref("alerts.useSystemBackend", false);',
+  'user_pref("print.prefer_system_dialog", false);',
+  'user_pref("print.tab_modal.enabled", true);',
+  'user_pref("network.protocol-handler.external-default", false);',
+  'user_pref("browser.download.useDownloadDir", true);',
+  'user_pref("browser.download.always_ask_before_handling_new_types", false);',
+  'user_pref("browser.download.open_pdf_attachments_inline", true);',
 ];
 
 export async function ensureAgentFirefoxProfile(profileDir) {

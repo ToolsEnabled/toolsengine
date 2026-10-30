@@ -1,4 +1,4 @@
-import { folderContains } from './config.js';
+import { folderContains, PROGRAM_FOLDER } from './config.js';
 import { restrictedPluginPath } from './plugin-policy.js';
 import { constants as fsConstants } from "node:fs";
 import {
@@ -205,7 +205,16 @@ async function verifyRoot(root) {
 // browser tools. The layout itself is allowed; only these tools stay out.
 export const BROWSER_RUNTIME_FOLDER = ".toolsengine-runtime";
 const BROWSER_FOLDERS_NOTE =
-  "Paths inside the browser's own folders in the workspace are refused: .toolsengine-runtime, and the profile folder when --profile-dir names one there.";
+  "Paths inside the browser's own folders in the workspace are refused: .toolsengine-runtime, and the profile folder when --profile-dir names one there. The ToolsEngine program folder is excluded from file access, listing and search.";
+
+async function insideProgramFolder(candidate, { existing = false } = {}) {
+  const program = await realpath(PROGRAM_FOLDER);
+  return isContained(program, candidate) || existing && await folderContains(program, candidate);
+}
+async function refuseProgramFolder(candidate, options) {
+  if (await insideProgramFolder(candidate, options))
+    fail('PROGRAM_FOLDER', 'The ToolsEngine program folder is reserved for the installed runtime. Workspace tools do not read or change it.');
+}
 
 async function browserFoldersIn(root, profileDir) {
   const folders = [path.join(root, BROWSER_RUNTIME_FOLDER)];
@@ -245,6 +254,7 @@ async function refuseBrowserFolder(candidate, browserFolders, options) {
 async function resolveExisting(root, input, options = {}) {
   const segments = portableSegments(input, { allowRoot: options.allowRoot });
   await verifyRoot(root);
+  await refuseProgramFolder(root, { existing: true });
 
   let candidate = root;
   const walked = [];
@@ -255,6 +265,7 @@ async function resolveExisting(root, input, options = {}) {
       fail("PATH_OUTSIDE_WORKSPACE", "Resolved path leaves the workspace.");
     }
     await refuseBrowserFolder(candidate, options.browserFolders);
+    await refuseProgramFolder(candidate);
     let info;
     try {
       info = await lstat(candidate);
@@ -269,6 +280,7 @@ async function resolveExisting(root, input, options = {}) {
     // Each folder on the way exists by now: one that is a browser folder
     // under another spelling is refused as well.
     await refuseBrowserFolder(candidate, options.browserFolders, { existing: true });
+    await refuseProgramFolder(candidate, { existing: true });
   }
 
   const canonical = await realpath(candidate);
@@ -320,6 +332,7 @@ async function resolveWriteTarget(root, input, browserFolders) {
     fail("PATH_OUTSIDE_WORKSPACE", "Resolved path leaves the workspace.");
   }
   await refuseBrowserFolder(candidate, browserFolders);
+  await refuseProgramFolder(candidate);
 
   let info = null;
   try {
@@ -496,6 +509,7 @@ export function createWorkspaceTools({ workspace, profileDir, pluginProfile } = 
       let skippedSymlinks = 0;
       let skippedChangedEntries = 0;
       let skippedProtectedEntries = 0;
+      let skippedProgramFolders = 0;
       const directory = await opendir(candidate);
       try {
         for await (const entry of directory) {
@@ -517,6 +531,7 @@ export function createWorkspaceTools({ workspace, profileDir, pluginProfile } = 
             skippedSymlinks += 1;
             continue;
           }
+          if (await insideProgramFolder(entryPath, { existing: true })) { skippedProgramFolders++; continue; }
           found.push({
             name: entry.name,
             type: info.isDirectory() ? "directory" : info.isFile() ? "file" : "other",
@@ -537,6 +552,7 @@ export function createWorkspaceTools({ workspace, profileDir, pluginProfile } = 
         scanLimit: MAX_LIST_SCANNED_ENTRIES,
         skippedSymlinks,
         skippedChangedEntries,
+        skippedProgramFolders,
         ...(strict ? { skippedProtectedEntries, protectedEntryRule: 'OpenAI plugin protected-path policy; names and contents withheld.' } : {}),
       };
     },
@@ -794,7 +810,9 @@ export function createWorkspaceTools({ workspace, profileDir, pluginProfile } = 
               continue;
             }
             if (info.isDirectory()) {
-              if (entry.name.startsWith(".")) {
+              if (await insideProgramFolder(entryPath, { existing: true })) {
+                skipped.programFolders = (skipped.programFolders || 0) + 1;
+              } else if (entry.name.startsWith(".")) {
                 skipped.hiddenDirectories += 1;
               } else if (await insideBrowserFolder(entryPath, browserFolders, { existing: true })) {
                 skipped.browserFolders += 1;

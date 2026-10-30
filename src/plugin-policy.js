@@ -8,8 +8,8 @@ export function assertPluginProfile(config) {
   if (config.pluginProfile !== 'openai') throw new Error('Unknown ToolsEngine plugin profile.');
   if (config.browser !== false || config.desktopProfileRoot || config.desktopAllowSignIn
       || config.profileDir || config.cdpEndpoint || config.browserExtension || config.firefoxDesktop
-      || config.browserExecutable || config.browserChannel || config.browserSandbox === false
-      || config.allowLocalNetwork || config.desktopLeftHalf)
+      || config.chromeHidden || config.browserExecutable || config.browserChannel || config.browserSandbox === false
+      || config.allowLocalNetwork || config.desktopLeftHalf || config.privateDisplay || config.browserViewRuntime)
     throw new Error('The OpenAI plugin profile permits only scoped files and public web; browser, desktop, sign-in and private-network options are refused.');
 }
 export function restrictPluginTools(tools, profile) {

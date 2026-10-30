@@ -15,8 +15,9 @@ export const PROGRAM_FOLDER = fileURLToPath(new URL('..', import.meta.url));
 
 // The assistant can write anywhere in the workspace. If the workspace held
 // the program folder, workspace.write_file could rewrite the server's own
-// code and the Windows helper; if the program folder held the workspace, a
-// workspace such as its src folder would do the same. Both are refused. The
+// code and the Windows helper. Standalone workspace tools now exclude the
+// program itself, so an ancestor (including the user's home) is usable.
+// A workspace inside the program and overlap in the strict plugin remain refused. The
 // two arguments are real paths: links and short names are resolved by then.
 //
 // The paths are compared as text, and then by what the file system says each
@@ -102,13 +103,22 @@ async function plainDirectory(value, { create = false } = {}) {
   return await fs.realpath(absolute);
 }
 
+// Sensitive state must never enter inherited Playwright protocol/file logs.
+export function chromeSessionEnvironment(base = process.env) {
+  const env = { ...base };
+  for (const name of Object.keys(env))
+    if (/^(?:DEBUG(?:_.*)?|PWDEBUG.*|PW.*(?:TRACE|DEBUG|LOG).*|PLAYWRIGHT.*(?:TRACE|DEBUG|LOG).*)$/i.test(name)) delete env[name];
+  return env;
+}
+
 export async function parseConfig(args, { env = process.env } = {}) {
   const config = { headless: true, browser: true, browserSandbox: true, allowLocalNetwork: false };
   const values = new Map([
     ['--plugin-profile', 'pluginProfile'], ['--workspace', 'workspace'], ['--profile-dir', 'profileDir'],
     ['--browser-executable', 'browserExecutable'], ['--browser-channel', 'browserChannel'],
+    ['--browser-view-runtime', 'browserViewRuntime'],
     ['--cdp-endpoint', 'cdpEndpoint'],
-    ['--desktop-profile-root', 'desktopProfileRoot'],
+    ['--desktop-profile-root', 'desktopProfileRoot'], ['--tool-names', 'toolNames'],
   ]);
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -123,15 +133,46 @@ export async function parseConfig(args, { env = process.env } = {}) {
     else if (arg === '--desktop-left-half') config.desktopLeftHalf = true;
     else if (arg === '--desktop-allow-sign-in') config.desktopAllowSignIn = true;
     else if (arg === '--browser-extension') config.browserExtension = true;
+    else if (arg === '--chrome-hidden') config.chromeHidden = true;
     else if (arg === '--firefox-desktop' || arg === '--firefox-hidden') config.firefoxDesktop = true;
+    else if (arg === '--private-display') config.privateDisplay = true;
     else if (arg === '--help' || arg === '-h') config.help = true;
     else if (arg === '--version') config.version = true;
     else throw new Error(`Unknown option: ${arg}`);
   }
   if (config.help || config.version) return config;
+  if (config.toolNames !== undefined && !['dotted', 'underscore'].includes(config.toolNames))
+    throw new Error('--tool-names must be dotted or underscore.');
   assertPluginProfile(config);
-  if (!config.browser && (config.profileDir || config.cdpEndpoint || config.browserExtension || config.browserExecutable || config.browserChannel || config.firefoxDesktop))
+  if (config.browserViewRuntime) {
+    if (!config.browser || (!config.privateDisplay && !config.firefoxDesktop))
+      throw new Error('--browser-view-runtime requires --private-display or --firefox-hidden.');
+    config.browserViewRuntime = await plainDirectory(config.browserViewRuntime);
+  }
+  if (!config.browser && (config.profileDir || config.cdpEndpoint || config.browserExtension || config.browserExecutable || config.browserChannel || config.firefoxDesktop || config.privateDisplay || config.chromeHidden))
     throw new Error('--no-browser cannot be combined with browser configuration.');
+  // --private-display runs ToolsEngine's own Chromium on a private X display
+  // that nobody sees, so that browser.show can show it to the person and
+  // browser.hide can hide it again (src/private-display.js, browser-view.js).
+  if (config.privateDisplay) {
+    if (process.platform !== 'linux') throw new Error('--private-display currently requires Linux with X11 (Xvfb). On this system the browser runs headless, or in a window with --headed.');
+    if (config.firefoxDesktop) throw new Error('--firefox-hidden already runs Firefox on a private display and offers browser.show and browser.hide there; --private-display is for ToolsEngine\'s own Chromium. Choose one.');
+    if (config.cdpEndpoint || config.browserExtension) throw new Error('--private-display applies only to a browser that ToolsEngine starts itself; a browser attached with --cdp-endpoint or --browser-extension keeps its own windows.');
+    if (config.chromeHidden) throw new Error('--chrome-hidden runs Chrome headless with no display to show; --private-display is for ToolsEngine\'s own Chromium. Choose one.');
+    if (config.headless === false) throw new Error('Choose --headed (the browser in a window on your own screen) or --private-display (hidden, shown on request with browser.show), not both.');
+  }
+  if (config.chromeHidden) {
+    const quiet = chromeSessionEnvironment(env);
+    for (const name of Object.keys(env)) if (!Object.hasOwn(quiet, name)) delete env[name];
+    if (!['linux', 'win32'].includes(process.platform)) throw new Error('--chrome-hidden requires Linux or native Windows.');
+    if (config.headless === false || config.firefoxDesktop || config.cdpEndpoint || config.browserExtension || config.browserExecutable || config.browserChannel || config.desktopProfileRoot || config.browserSandbox === false)
+      throw new Error('Chrome hidden mode requires sandboxed headless Chrome and cannot attach to a visible browser or desktop.');
+    config.headless = true;
+    config.browserChannel = 'chrome';
+    config.profileDir ||= process.platform === 'win32'
+      ? path.join(userInfo().homedir, 'AppData', 'Local', 'ToolsEngine', 'agent-chrome')
+      : path.join(userInfo().homedir, '.local', 'share', 'toolsengine', 'agent-chrome');
+  }
   if (config.firefoxDesktop) {
     if (process.platform !== 'linux') throw new Error('--firefox-hidden currently requires Linux.');
     if (config.profileDir || config.cdpEndpoint || config.browserExtension || config.browserExecutable || config.browserChannel || config.desktopProfileRoot || config.browserSandbox === false)
@@ -160,8 +201,11 @@ export async function parseConfig(args, { env = process.env } = {}) {
     if (error?.code !== 'ENOENT') throw error;
     throw new Error(`--workspace must name an existing absolute directory. ${path.resolve(config.workspace)} does not exist: create the folder first, or name one that exists.`);
   }
-  if (await foldersOverlap(config.workspace, await fs.realpath(PROGRAM_FOLDER)))
-    throw new Error('--workspace and the ToolsEngine program folder must not contain one another: the assistant can write anywhere in the workspace, and must not be able to change the program. Choose a workspace folder outside it.');
+  const program = await fs.realpath(PROGRAM_FOLDER);
+  if (config.pluginProfile && await foldersOverlap(config.workspace, program))
+    throw new Error('--workspace and the ToolsEngine program folder must not contain one another in a plugin profile. Choose a workspace folder outside it.');
+  if (await folderContains(program, config.workspace))
+    throw new Error('--workspace must not be the ToolsEngine program folder or a folder inside it. Its parent is supported for standalone MCP; program files remain excluded from workspace tools.');
   if (config.desktopLeftHalf && !config.desktopProfileRoot) throw new Error('--desktop-left-half requires --desktop-profile-root.');
   if (config.desktopAllowSignIn && !config.desktopProfileRoot) throw new Error('--desktop-allow-sign-in requires --desktop-profile-root.');
   if (config.desktopProfileRoot) {
@@ -195,6 +239,7 @@ export async function parseConfig(args, { env = process.env } = {}) {
     if (await folderContains(intended, config.workspace)) throw new Error('The browser profile must not equal or contain the workspace.');
     await validateBrowserLayout(config.workspace, intended);
     config.profileDir = await plainDirectory(config.profileDir, { create: true });
+    if (process.platform !== 'win32') await fs.chmod(config.profileDir, 0o700);
     if (await folderContains(config.profileDir, config.workspace)) throw new Error('The browser profile must not equal or contain the workspace.');
     await validateBrowserLayout(config.workspace, config.profileDir);
     const marker = path.join(config.profileDir, '.toolsengine-profile');
